@@ -1,0 +1,12 @@
+{
+  "name": "asana-admin-mcp",
+  "owner": "plakorp",
+  "plugins": [
+    {
+      "name": "asana-admin",
+      "displayName": "Asana Admin",
+      "source": "./",
+      "description": "Create and reorder Asana portfolios, dropdown values, projects, sections, and access — the write operations the stock Asana connector leaves out."
+    }
+  ]
+}

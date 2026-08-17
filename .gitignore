@@ -1,0 +1,6 @@
+node_modules/
+.DS_Store
+*.log
+# never — the token lives at ~/.asana_token, outside this repo
+.asana_token
+.env

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "asana-admin": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/src/index.js"]
+    }
+  }
+}

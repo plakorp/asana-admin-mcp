@@ -1,0 +1,17 @@
+{
+  "name": "asana-admin-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server for Asana structure admin: portfolios, custom fields / dropdown options, projects, sections",
+  "bin": { "asana-admin-mcp": "src/index.js" },
+  "scripts": {
+    "start": "node src/index.js",
+    "smoke": "node scripts/smoke.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
+  },
+  "engines": { "node": ">=20" }
+}
