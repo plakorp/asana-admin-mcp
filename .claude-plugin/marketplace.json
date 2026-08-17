@@ -1,6 +1,10 @@
 {
   "name": "asana-admin-mcp",
-  "owner": "plakorp",
+  "description": "Asana admin tooling for design and project ops.",
+  "owner": {
+    "name": "plakorp",
+    "url": "https://github.com/plakorp"
+  },
   "plugins": [
     {
       "name": "asana-admin",
