@@ -27,7 +27,7 @@ await client.connect(
 const { tools } = await client.listTools();
 console.log(`✓ server up — ${tools.length} tools: ${tools.map((t) => t.name).join(", ")}\n`);
 
-const created = { projects: [], portfolios: [], custom_fields: [] };
+const created = { projects: [], portfolios: [], custom_fields: [], notes: [] };
 let failures = 0;
 
 async function call(name, args) {
@@ -192,6 +192,40 @@ try {
     if (idx("Two-renamed") > idx("One")) throw new Error(`order is ${names(secs)}`);
   });
 
+  // ── Knowledge pages (undocumented /notes endpoint — most likely to break) ──
+  const page = await step("page_create", () =>
+    call("page_create", {
+      workspace_gid: ws.gid,
+      name: `${PREFIX}-page`,
+      html_text: "<body>hello</body>",
+    })
+  );
+  if (page) created.notes.push(page.gid);
+  await step("page_update (rename + body)", async () => {
+    const r = await call("page_update", {
+      page_gid: page.gid,
+      name: `${PREFIX}-page-renamed`,
+      html_text: "<body><strong>bold</strong><ul><li>a</li></ul></body>",
+    });
+    if (!r.name.endsWith("renamed")) throw new Error(`name is ${r.name}`);
+  });
+  await step("page_get returns the new body", async () => {
+    const r = await call("page_get", { page_gid: page.gid });
+    if (!r.html_text.includes("<strong>bold</strong>")) throw new Error(`body is ${r.html_text}`);
+  });
+  await step("page_list finds it", async () => {
+    const list = await call("page_list", { workspace_gid: ws.gid, limit: 100 });
+    if (!list.some((n) => n.gid === page.gid)) throw new Error("not in list");
+  });
+  // Documented behaviour worth pinning: <p> is rejected outright.
+  await step("<p> is still rejected (guards the doc claim)", async () => {
+    const res = await client.callTool({
+      name: "page_update",
+      arguments: { page_gid: page.gid, html_text: "<body><p>x</p></body>" },
+    });
+    if (!res.isError) throw new Error("<p> was accepted — docs/tool description are now wrong");
+  });
+
   // ── project rename + duplicate (the dashboard question) ───────────────────
   await step("project_update (rename)", async () => {
     const r = await call("project_update", { project_gid: target, name: `${PREFIX}-A-renamed` });
@@ -212,6 +246,7 @@ try {
   for (const gid of created.projects) await destroy("projects", gid);
   for (const gid of created.portfolios) await destroy("portfolios", gid);
   for (const gid of created.custom_fields) await destroy("custom_fields", gid);
+  for (const gid of created.notes) await destroy("notes", gid);
   await client.close();
   console.log(failures ? `\n${failures} FAILED` : "\nall passed");
   process.exit(failures ? 1 : 0);

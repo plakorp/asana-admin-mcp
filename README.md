@@ -61,7 +61,7 @@ Token อ่านจาก env `ASANA_TOKEN` ก่อน ถ้าไม่ม
 
 ---
 
-## Tools (21)
+## Tools (27)
 
 ทุก tool รับ **gid** ไม่ใช่ชื่อ — ใช้ `asana_find` แปลงชื่อ → gid ก่อน
 
@@ -92,6 +92,27 @@ Token อ่านจาก env `ASANA_TOKEN` ก่อน ถ้าไม่ม
 | `custom_field_attach` | ผูก field เข้า project หรือ portfolio (`is_important:true` = โชว์เป็นคอลัมน์) |
 
 > Asana **ลบค่า dropdown ไม่ได้** — ทำได้แค่ `enabled:false` งานที่เคยเลือกค่านั้นไว้จะยังเก็บค่าเดิม
+
+### Knowledge pages ⚠️ undocumented API
+
+| Tool | ทำอะไร |
+|---|---|
+| `page_create` | สร้างหน้าใน **Knowledge → Pages** |
+| `page_update` | **rename** / แก้เนื้อหา / privacy |
+| `page_get` | อ่านหน้าเต็มรวม `html_text` |
+| `page_list` | หน้าทั้งหมดใน workspace |
+
+> 🔴 **Asana ไม่ประกาศ endpoint นี้ที่ไหนเลย** — ไม่มีใน OpenAPI spec และไม่มีใน
+> `developers.asana.com/llms.txt` ค้นพบด้วยการ probe ตรง ๆ เมื่อ 2026-08-17
+> Knowledge Page = resource ชื่อ **`note`** (`/notes`, permalink `/note/{gid}`)
+> **ของที่ไม่ประกาศเปลี่ยนได้ทุกเมื่อ** — ถ้าวันหนึ่ง 404 นั่นคือ Asana ไม่ใช่บั๊กของเรา
+> `npm run smoke` ครอบคลุมส่วนนี้ไว้เพื่อให้รู้ตัวเร็ว
+
+**ข้อจำกัดของ HTML ที่วัดเอง:**
+- `<p>` **ใช้ไม่ได้** → `xml_parsing_error` (ขึ้นบรรทัดใหม่ด้วย newline แทน)
+- `<h1>` `<h2>` ส่งได้ แต่ถูกเก็บเป็น `<strong>` — **ระดับหัวข้อไม่รอด**
+- ใช้ได้: `strong` `em` `u` `s` `ul` `ol` `li` `a` `blockquote` `code` `pre` `hr` `img`
+- `privacy_setting`: `members_only` (ค่าตั้งต้น) | `public_to_domain`
 
 ### Project / Section
 | Tool | ทำอะไร |

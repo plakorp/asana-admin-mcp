@@ -1,7 +1,7 @@
 {
   "name": "asana-admin",
   "description": "Asana structure admin — portfolios, custom fields / dropdown options, projects, sections, and access levels",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": { "name": "Korn (plakorp)" },
   "homepage": "https://github.com/plakorp/asana-admin-mcp",
   "repository": "https://github.com/plakorp/asana-admin-mcp",

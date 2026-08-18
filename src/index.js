@@ -328,6 +328,93 @@ tool(
   }
 );
 
+// ─── Knowledge pages ──────────────────────────────────────────────────────────
+// The Knowledge → Pages feature is the `note` resource. Asana does NOT document
+// it: /notes appears in neither the OpenAPI spec nor developers.asana.com/llms.txt.
+// Verified working by direct probe 2026-08-17. Being undocumented, it can change
+// or disappear without notice — treat a sudden 404 here as Asana's move, not a bug.
+
+const PAGE_HTML = z
+  .string()
+  .describe(
+    "Page body as HTML in a single <body> root. Allowed: strong, em, u, s, ul, ol, li, " +
+      "a, blockquote, code, pre, hr, img, h1, h2. <p> is REJECTED (xml_parsing_error) — " +
+      "separate paragraphs with newlines. h1/h2 are accepted but stored as <strong>, so " +
+      "heading levels do not survive."
+  );
+
+tool(
+  "page_create",
+  {
+    title: "Create Knowledge page",
+    description: "Create a page under Knowledge → Pages.",
+    inputSchema: {
+      workspace_gid: GID,
+      name: z.string().describe("Page title."),
+      html_text: PAGE_HTML.optional(),
+      privacy_setting: z
+        .enum(["members_only", "public_to_domain"])
+        .optional()
+        .describe("Defaults to members_only."),
+    },
+  },
+  async ({ workspace_gid, name, html_text, privacy_setting }) =>
+    req("POST", "/notes", {
+      body: clean({ workspace: workspace_gid, name, html_text, privacy_setting }),
+      query: { opt_fields: "name,permalink_url,privacy_setting,modified_at" },
+    })
+);
+
+tool(
+  "page_update",
+  {
+    title: "Rename / edit Knowledge page",
+    description:
+      "Change a page's title, body, or privacy. Only the fields you pass are touched — " +
+      "note that html_text REPLACES the whole body, so read it first if you are appending.",
+    inputSchema: {
+      page_gid: GID,
+      name: z.string().optional(),
+      html_text: PAGE_HTML.optional(),
+      privacy_setting: z.enum(["members_only", "public_to_domain"]).optional(),
+    },
+  },
+  async ({ page_gid, name, html_text, privacy_setting }) =>
+    req("PUT", `/notes/${page_gid}`, {
+      body: clean({ name, html_text, privacy_setting }),
+      query: { opt_fields: "name,permalink_url,privacy_setting,modified_at" },
+    })
+);
+
+tool(
+  "page_get",
+  {
+    title: "Read a Knowledge page",
+    description: "Full page including html_text — read this before editing so you do not overwrite the body.",
+    inputSchema: { page_gid: GID },
+  },
+  async ({ page_gid }) =>
+    req("GET", `/notes/${page_gid}`, {
+      query: { opt_fields: "name,text,html_text,permalink_url,privacy_setting,modified_at,created_by.name" },
+    })
+);
+
+tool(
+  "page_list",
+  {
+    title: "List Knowledge pages",
+    description: "Pages in a workspace, newest first. Untitled pages come back with an empty name.",
+    inputSchema: {
+      workspace_gid: GID,
+      limit: z.number().int().min(1).max(100).optional().describe("Default 50."),
+    },
+  },
+  async ({ workspace_gid, limit }) =>
+    req("GET", "/notes", {
+      query: { workspace: workspace_gid, limit: limit ?? 50, opt_fields: "name,permalink_url,modified_at" },
+    })
+);
+
 // ─── Membership / access ──────────────────────────────────────────────────────
 
 tool(
