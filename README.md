@@ -61,7 +61,7 @@ Token อ่านจาก env `ASANA_TOKEN` ก่อน ถ้าไม่ม
 
 ---
 
-## Tools (27)
+## Tools (28)
 
 ทุก tool รับ **gid** ไม่ใช่ชื่อ — ใช้ `asana_find` แปลงชื่อ → gid ก่อน
 
@@ -111,14 +111,41 @@ Token อ่านจาก env `ASANA_TOKEN` ก่อน ถ้าไม่ม
 **ข้อจำกัดของ HTML ที่วัดเอง:**
 - `<p>` **ใช้ไม่ได้** → `xml_parsing_error` (ขึ้นบรรทัดใหม่ด้วย newline แทน)
 - `<h1>` `<h2>` ส่งได้ แต่ถูกเก็บเป็น `<strong>` — **ระดับหัวข้อไม่รอด**
-- ใช้ได้: `strong` `em` `u` `s` `ul` `ol` `li` `a` `blockquote` `code` `pre` `hr` `img`
+- ใช้ได้: `strong` `em` `u` `s` `ul` `ol` `li` `a` `blockquote` `code` `pre` `hr` `img` **`table`**
 - `privacy_setting`: `members_only` (ค่าตั้งต้น) | `public_to_domain`
+
+#### 🔴 4 กับดักที่ทำให้คนคิดว่า "ทำไม่ได้" (วัดจริง 2026-08-21)
+
+**1. ตารางทำได้ — แต่ไม่มีเขียนไว้ที่ไหนเลย**
+ส่ง `<table><tr><td>…</td></tr></table>` ได้ตรง ๆ Asana เก็บเป็น **native table จริง** ไม่ใช่ข้อความ
+ไม่มี `thead` / `th` — ทำหัวตารางด้วยการใส่ `<strong>` ในเซลล์แถวแรก
+Asana จะแปะบรรทัด `⚠ This table cannot be viewed on Mobile` ให้เองเหนือตาราง (เราไม่ต้องเขียน)
+
+**2. `page_get` อ่านตารางกลับมาไม่ได้ — ห้ามใช้ตัดสินว่าเขียนสำเร็จไหม**
+ตารางที่อยู่บนหน้าจะคืนมาเป็นบรรทัด placeholder เปล่า ๆ:
+```html
+<i>⚠ This table cannot be viewed on Mobile. Please view it on Web. ⚠</i>
+```
+ไม่มีแถว ไม่มีเซลล์เลย → **ยืนยันด้วยการเปิดเว็บดูเท่านั้น** ถ้าดูจาก `page_get` จะสรุปผิดว่าโดน strip
+
+**3. ⚠️ round-trip ลบตารางทิ้งแบบเงียบ ๆ**
+`html_text` = **replace ทั้ง body ไม่ใช่ append** → การเพิ่มเนื้อหาต้อง `page_get` แล้วต่อ string เอง
+แต่เพราะข้อ 2 การ `page_get` → `page_update` ธรรมดา **จะลบตารางเดิมที่มีอยู่บนหน้าไปทั้งหมด**
+ก่อนเขียนทับหน้าที่ไม่ได้เขียนเอง → เปิดเว็บเช็คก่อนว่ามีตารางอยู่ไหม
+
+**4. link ต้องรอ enrich — ไม่ใช่พัง**
+ใส่ permalink ธรรมดาใน `href` แล้ว Asana จะ enrich เป็น mention ให้เอง
+แต่ **หลังเขียนเสร็จทันทีจะยังโชว์เป็น URL ดิบ ต้อง reload ก่อน**
+และ label ที่แสดงจะถูกเขียนทับด้วยชื่อจริงของ page เสมอ ไม่ว่าจะใส่ข้อความอะไรไว้
+
+> เพิ่มเติม: ตารางเกิน ~5 คอลัมน์จะ**ล้นกรอบเนื้อหา** คอลัมน์ขวาสุดโดนตัด — ยุบคอลัมน์ก่อน
 
 ### Project / Section
 | Tool | ทำอะไร |
 |---|---|
 | `project_create` | สร้างโปรเจกต์ (ใน organization ต้องมี `team_gid`) |
 | `project_update` | **rename** / notes / สี / `default_view` / archive |
+| `project_set_fields` | **เขียนค่า custom field ของ project** — ทางเดียวที่จะเติมคอลัมน์ที่เห็นใน portfolio List view เพราะค่าอยู่บน project ไม่ใช่บน portfolio |
 | `project_duplicate` | ก๊อปโปรเจกต์ **พา Dashboard ไปด้วย** — ทางออกเดียวของเรื่อง dashboard (คืน job, ทำงาน async) |
 | `project_list_sections` | section ตามลำดับ + gid |
 | `section_create` | เพิ่ม section + ระบุตำแหน่งได้ |

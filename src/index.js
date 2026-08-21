@@ -338,9 +338,18 @@ const PAGE_HTML = z
   .string()
   .describe(
     "Page body as HTML in a single <body> root. Allowed: strong, em, u, s, ul, ol, li, " +
-      "a, blockquote, code, pre, hr, img, h1, h2. <p> is REJECTED (xml_parsing_error) — " +
-      "separate paragraphs with newlines. h1/h2 are accepted but stored as <strong>, so " +
-      "heading levels do not survive."
+      "a, blockquote, code, pre, hr, img, h1, h2, and table. <p> is REJECTED " +
+      "(xml_parsing_error) — separate paragraphs with newlines. h1/h2 are accepted but " +
+      "stored as <strong>, so heading levels do not survive. " +
+      "TABLES DO WORK, despite not appearing in any Asana doc: <table><tr><td>…</td></tr></table> " +
+      "(no thead/th — bold the first row's cells with <strong> for a header). Asana stores it as a " +
+      "real native table and adds its own '⚠ This table cannot be viewed on Mobile' line above it. " +
+      "But page_get NEVER returns the table's contents (see its warning), so verify a table in the " +
+      "browser, not by reading the page back. Keep tables to ~5 columns — wide ones overflow the " +
+      "page's content area and the right-hand columns get clipped. " +
+      "Links: pass a plain Asana permalink as href; Asana enriches it into a mention on its own, but " +
+      "only after a reload — right after a write it still renders as a raw URL. That is not a failure, " +
+      "and the visible label becomes the target's real name regardless of the text you supply."
   );
 
 tool(
@@ -370,8 +379,12 @@ tool(
   {
     title: "Rename / edit Knowledge page",
     description:
-      "Change a page's title, body, or privacy. Only the fields you pass are touched — " +
-      "note that html_text REPLACES the whole body, so read it first if you are appending.",
+      "Change a page's title, body, or privacy. Only the fields you pass are touched — but " +
+      "html_text REPLACES the whole body, it never appends. To add to a page: page_get first, " +
+      "then send the existing html_text with your addition concatenated onto it. " +
+      "DESTRUCTIVE ROUND-TRIP: page_get does not return the contents of tables already on the " +
+      "page, so a plain get-then-update rewrite silently deletes every existing table. Check the " +
+      "page in the browser for tables before rewriting a body you did not author.",
     inputSchema: {
       page_gid: GID,
       name: z.string().optional(),
@@ -390,7 +403,14 @@ tool(
   "page_get",
   {
     title: "Read a Knowledge page",
-    description: "Full page including html_text — read this before editing so you do not overwrite the body.",
+    description:
+      "Full page including html_text — read this before editing so you do not overwrite the body. " +
+      "TWO BLIND SPOTS. (1) Tables: a table on the page comes back only as the placeholder line " +
+      "'<i>⚠ This table cannot be viewed on Mobile. Please view it on Web. ⚠</i>' with no rows or " +
+      "cells, so you cannot read a table back, cannot diff one, and must not assume a table write " +
+      "failed just because it is missing here — open the page in a browser to confirm. " +
+      "(2) Links you lack access to come back as [Private Link] with data-asana-accessible=\"false\"; " +
+      "that is a permission gap on the linked page, not an error — ask for access to read it.",
     inputSchema: { page_gid: GID },
   },
   async ({ page_gid }) =>
@@ -497,6 +517,29 @@ tool(
     req("PUT", `/projects/${project_gid}`, {
       body: clean(rest),
       query: { opt_fields: "name,color,default_view,archived,permalink_url" },
+    })
+);
+
+tool(
+  "project_set_fields",
+  {
+    title: "Set project custom field values",
+    description:
+      "Write custom field VALUES on a project — this is the only way to fill the columns you see in a portfolio List view, because those values live on the project, not the portfolio. Pass a map of custom_field_gid → value: text takes a string, number a number, enum the enum_option gid, multi_enum an array of gids, date {\"date\":\"YYYY-MM-DD\"}. null clears one. Only the fields you pass are touched. Get the gids from asana_list_custom_fields (project_gid or portfolio_gid).",
+    inputSchema: {
+      project_gid: GID,
+      custom_fields: z
+        .record(
+          z.string(),
+          z.union([z.string(), z.number(), z.null(), z.array(z.string()), z.record(z.string(), z.string())])
+        )
+        .describe("Map of custom field gid → value."),
+    },
+  },
+  async ({ project_gid, custom_fields }) =>
+    req("PUT", `/projects/${project_gid}`, {
+      body: { custom_fields },
+      query: { opt_fields: "name,custom_fields.name,custom_fields.display_value" },
     })
 );
 

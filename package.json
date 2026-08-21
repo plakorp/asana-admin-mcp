@@ -1,6 +1,6 @@
 {
   "name": "asana-admin-mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "MCP server for Asana structure admin: portfolios, custom fields / dropdown options, projects, sections",
