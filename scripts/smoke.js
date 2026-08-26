@@ -226,6 +226,109 @@ try {
     if (!res.isError) throw new Error("<p> was accepted — docs/tool description are now wrong");
   });
 
+  // ── the two UNDOCUMENTED deletes ──────────────────────────────────────────
+  // Asana documents no DELETE for either resource. These steps are the only proof
+  // the routes actually destroy something rather than merely existing, so if one
+  // starts failing, the tool descriptions are what needs correcting.
+  await step("custom_field_detach (project keeps the field elsewhere)", async () => {
+    await call("custom_field_detach", { custom_field_gid: cf.gid, project_gid: projects[0].gid });
+    const onProject = await call("asana_list_custom_fields", { project_gid: projects[0].gid });
+    if (onProject.some((s) => s.custom_field?.gid === cf.gid)) throw new Error("still attached to the project");
+    const inWorkspace = await call("asana_list_custom_fields", { workspace_gid: ws.gid });
+    if (!inWorkspace.some((f) => f.gid === cf.gid)) throw new Error("detach destroyed the field itself");
+  });
+
+  // Pins the reason there is no enum_option_delete tool. The route is recognised —
+  // that is what made it look available — but Asana forbids the call. If this ever
+  // stops returning 403, deletion became possible and the tool should be added.
+  await step("enum option deletion is still forbidden by Asana (403)", async () => {
+    const doomed = await call("enum_option_create", { custom_field_gid: cf.gid, name: "Doomed" });
+    const res = await fetch(`https://app.asana.com/api/1.0/enum_options/${doomed.gid}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${process.env.ASANA_TOKEN}` },
+    });
+    if (res.status !== 403) throw new Error(`expected 403, got ${res.status} — enum options may now be deletable`);
+    await call("enum_option_update", { enum_option_gid: doomed.gid, enabled: false });
+  });
+
+  await step("custom_field_delete refuses without confirm", async () => {
+    const res = await client.callTool({
+      name: "custom_field_delete",
+      arguments: { custom_field_gid: cf.gid },
+    });
+    if (!res.isError) throw new Error("deleted a field with no confirm — the guard is not wired");
+  });
+
+  await step("custom_field_delete really removes the field", async () => {
+    const doomed = await call("custom_field_create", {
+      workspace_gid: ws.gid,
+      name: `${PREFIX}-doomed-field`,
+      type: "text",
+    });
+    await call("custom_field_delete", { custom_field_gid: doomed.gid, confirm: true });
+    const f = await call("asana_list_custom_fields", { workspace_gid: ws.gid });
+    if (f.some((x) => x.gid === doomed.gid)) throw new Error("still in the workspace");
+  });
+
+  // ── project templates ─────────────────────────────────────────────────────
+  // The trap this pins: in an ORGANIZATION, ?workspace= is rejected and only
+  // ?team= works. If template_list ever starts accepting a workspace, Asana
+  // changed something and the tool description is stale.
+  const teams = await step("team_list (mine)", () => call("team_list", { organization_gid: ws.gid }));
+  const team = teams?.[0];
+  if (team) {
+    console.log(`  team: ${team.name} (${team.gid})`);
+    const tpls = await step("template_list by team", () => call("template_list", { team_gid: team.gid }));
+    await step("template_list rejects an organization gid as workspace", async () => {
+      const res = await client.callTool({
+        name: "template_list",
+        arguments: { workspace_gid: ws.gid },
+      });
+      if (!res.isError) throw new Error("workspace query now works — the org-vs-workspace note is stale");
+    });
+    if (tpls?.length) {
+      const t = tpls[0];
+      await step("template_get", async () => {
+        const r = await call("template_get", { template_gid: t.gid });
+        if (!("requested_roles" in r)) throw new Error("no requested_roles on the record");
+      });
+      // Deliberately NOT executed: execute:true creates a real project in a real
+      // team. The dry run is what the smoke can assert without leaving litter.
+      await step("template_instantiate dry run creates nothing", async () => {
+        const r = await call("template_instantiate", { template_gid: t.gid, name: `${PREFIX}-from-template` });
+        if (r.dry_run !== true) throw new Error("dry run flag missing");
+        const found = await call("asana_find", {
+          workspace_gid: ws.gid,
+          query: `${PREFIX}-from-template`,
+          type: "project",
+        });
+        if (found.length) throw new Error("the dry run actually created a project");
+      });
+    } else {
+      console.log("  (no templates visible to this team — template_get/instantiate skipped)");
+    }
+
+    // ── teams / People ──────────────────────────────────────────────────────
+    // Read-only only. team_create is untested ON PURPOSE: Asana has no DELETE for
+    // teams, so a smoke run would leave a permanent team in the real organization.
+    await step("team_get returns the access-level settings", async () => {
+      const r = await call("team_get", { team_gid: team.gid });
+      if (!("team_member_removal_access_level" in r)) throw new Error("governance fields missing");
+    });
+    await step("team_members lists people with roles", async () => {
+      const r = await call("team_members", { team_gid: team.gid, limit: 5 });
+      if (!Array.isArray(r) || !r.length) throw new Error("no members returned");
+      if (!("is_admin" in r[0])) throw new Error("is_admin missing");
+    });
+    await step("team_remove_user refuses without confirm", async () => {
+      const res = await client.callTool({
+        name: "team_remove_user",
+        arguments: { team_gid: team.gid, user: "me" },
+      });
+      if (!res.isError) throw new Error("removed a member with no confirm — the guard is not wired");
+    });
+  }
+
   // ── project rename + duplicate (the dashboard question) ───────────────────
   await step("project_update (rename)", async () => {
     const r = await call("project_update", { project_gid: target, name: `${PREFIX}-A-renamed` });

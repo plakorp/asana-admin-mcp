@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { req, clean, onePosition } from "./client.js";
 
-const server = new McpServer({ name: "asana-admin", version: "1.0.0" });
+const server = new McpServer({ name: "asana-admin", version: "1.3.0" });
 
 const ok = (data) => ({
   content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -26,6 +26,15 @@ const COLOR = z
   .describe(
     "One of: none, red, orange, yellow-orange, yellow, yellow-green, green, blue-green, aqua, blue, indigo, purple, magenta, hot-pink, pink, cool-gray"
   );
+
+/**
+ * Asana has no trash for structure objects — a deleted custom field, dropdown value
+ * or team membership is gone, and the data that hung off it goes with it. Every tool
+ * that destroys something takes this, so the destruction is always a second decision.
+ */
+const CONFIRM = z
+  .literal(true)
+  .describe("Must be true. This permanently destroys something; there is no undo and no trash.");
 
 // ─── Discovery ────────────────────────────────────────────────────────────────
 
@@ -262,7 +271,7 @@ tool(
   {
     title: "Rename / disable dropdown value",
     description:
-      "Rename, recolor, or disable a dropdown value. Asana has no delete — set enabled:false to retire a value; tasks already holding it keep it.",
+      "Rename, recolor, or disable a dropdown value. There is no way to DELETE one: DELETE /enum_options/{gid} is a real route but Asana answers 403 'Enum option deletion is forbidden' (measured 2026-08-27). enabled:false is the only retirement there is — it hides the value from the picker while tasks already holding it keep it.",
     inputSchema: {
       enum_option_gid: GID,
       name: z.string().optional(),
@@ -324,6 +333,156 @@ tool(
     const owner = project_gid ? `/projects/${project_gid}` : `/portfolios/${portfolio_gid}`;
     return req("POST", `${owner}/addCustomFieldSetting`, {
       body: clean({ custom_field: custom_field_gid, is_important, insert_before, insert_after }),
+    });
+  }
+);
+
+tool(
+  "custom_field_detach",
+  {
+    title: "Detach custom field from project or portfolio",
+    description:
+      "Remove a custom field from one project or portfolio. The field itself and its values on other projects are untouched — this only takes the column away here.",
+    inputSchema: {
+      custom_field_gid: GID,
+      project_gid: GID.optional(),
+      portfolio_gid: GID.optional(),
+    },
+  },
+  async ({ custom_field_gid, project_gid, portfolio_gid }) => {
+    if (!project_gid && !portfolio_gid) throw new Error("Give either project_gid or portfolio_gid.");
+    if (project_gid && portfolio_gid) throw new Error("Give only one of project_gid or portfolio_gid.");
+    const owner = project_gid ? `/projects/${project_gid}` : `/portfolios/${portfolio_gid}`;
+    await req("POST", `${owner}/removeCustomFieldSetting`, { body: { custom_field: custom_field_gid } });
+    return { detached: custom_field_gid, from: project_gid ?? portfolio_gid };
+  }
+);
+
+// custom_field_delete is real but UNDOCUMENTED — Asana's reference offers no DELETE
+// for a custom field. Verified end-to-end by the smoke test, not merely probed.
+//
+// There is deliberately NO enum_option_delete here. DELETE /enum_options/{gid} is a
+// recognised route, which is exactly what made it look available; calling it returns
+// 403 "Enum option deletion is forbidden". A route answering "Not a recognized ID"
+// instead of "No matching route" proves it EXISTS, never that it is PERMITTED — the
+// two are different questions and only a real call answers the second one.
+
+tool(
+  "custom_field_delete",
+  {
+    title: "Delete custom field",
+    description:
+      "Permanently delete a workspace custom field. It disappears from EVERY project and portfolio that uses it, along with the values stored on their tasks — a field is workspace-wide, so this is never a local cleanup. Check custom_field_attach's inverse (custom_field_detach) first: detaching from one project is usually what was actually wanted. UNDOCUMENTED endpoint.",
+    inputSchema: {
+      custom_field_gid: GID,
+      confirm: CONFIRM,
+    },
+  },
+  async ({ custom_field_gid }) => {
+    const before = await req("GET", `/custom_fields/${custom_field_gid}`, {
+      query: { opt_fields: "name,resource_subtype" },
+    });
+    await req("DELETE", `/custom_fields/${custom_field_gid}`);
+    return { deleted: before };
+  }
+);
+
+// ─── Project templates ────────────────────────────────────────────────────────
+// Templates ARE in the API, contrary to a long-standing note in our own wiki. The
+// trap that hides them: bangkokbank.com is an ORGANIZATION, so passing ?workspace=
+// is rejected with "Not a valid regular workspace. You provided an organization",
+// which reads like the endpoint is broken. Pass ?team= instead. (Measured 2026-08-27.)
+
+tool(
+  "template_list",
+  {
+    title: "List project templates",
+    description:
+      "Project templates visible to you. In an organization (bangkokbank.com is one) you MUST list per team — a workspace query is rejected. Use asana_find with type 'team' to get team gids.",
+    inputSchema: {
+      team_gid: GID.optional().describe("Templates owned by this team. Required in an organization."),
+      workspace_gid: GID.optional().describe("Only valid for a plain workspace, NOT an organization."),
+      limit: z.number().int().min(1).max(100).optional(),
+    },
+  },
+  async ({ team_gid, workspace_gid, limit }) => {
+    if (!team_gid && !workspace_gid) throw new Error("Give team_gid (or workspace_gid for a non-organization).");
+    return req("GET", "/project_templates", {
+      query: clean({
+        team: team_gid,
+        workspace: workspace_gid,
+        limit: limit ?? 50,
+        opt_fields: "name,public,team.name,owner.name,description",
+      }),
+    });
+  }
+);
+
+tool(
+  "template_get",
+  {
+    title: "Get project template",
+    description:
+      "The full template record, including requested_roles and requested_dates — the two things template_instantiate needs answers for.",
+    inputSchema: { template_gid: GID },
+  },
+  async ({ template_gid }) =>
+    req("GET", `/project_templates/${template_gid}`, {
+      query: {
+        opt_fields:
+          "name,description,html_description,public,color,team.name,owner.name,requested_dates,requested_roles,requested_roles.name",
+      },
+    })
+);
+
+tool(
+  "template_instantiate",
+  {
+    title: "Create a project from a template",
+    description:
+      "Build a real project from a template. Runs as a dry run by default: it reports what the template will ask for and creates nothing until you pass execute:true. NOTE a template does NOT carry Dashboard widgets (an open Asana feature request) — if the new project must have charts, use project_duplicate on a fully-configured project instead. Returns an Asana job; the project appears a moment after the call.",
+    inputSchema: {
+      template_gid: GID,
+      name: z.string().describe("Name for the new project."),
+      team_gid: GID.optional().describe("Team to create it in (defaults to the template's team)."),
+      public: z.boolean().optional().describe("Visible to the whole team (default false)."),
+      requested_dates: z
+        .array(z.object({ gid: GID, value: z.string().describe("ISO date, e.g. 2026-09-15") }))
+        .optional()
+        .describe("Answers for the template's date variables — gids come from template_get."),
+      requested_roles: z
+        .array(z.object({ gid: GID, value: GID.describe("User gid to fill this role.") }))
+        .optional()
+        .describe("Answers for the template's roles — gids come from template_get."),
+      execute: z
+        .boolean()
+        .optional()
+        .describe("false or omitted = dry run, nothing is created. true = actually create the project."),
+    },
+  },
+  async ({ template_gid, name, team_gid, public: isPublic, requested_dates, requested_roles, execute }) => {
+    const tpl = await req("GET", `/project_templates/${template_gid}`, {
+      query: { opt_fields: "name,team.name,requested_dates,requested_roles,requested_roles.name" },
+    });
+    if (!execute) {
+      return {
+        dry_run: true,
+        template: tpl.name,
+        would_create: { name, team: team_gid ?? tpl.team?.gid, public: isPublic ?? false },
+        template_asks_for: { requested_dates: tpl.requested_dates, requested_roles: tpl.requested_roles },
+        answered: { requested_dates: requested_dates ?? [], requested_roles: requested_roles ?? [] },
+        note: "Nothing was created. Call again with execute:true to build it. Dashboard widgets do NOT come across — use project_duplicate if the project needs charts.",
+      };
+    }
+    return req("POST", `/project_templates/${template_gid}/instantiateProject`, {
+      body: clean({
+        name,
+        team: team_gid,
+        public: isPublic,
+        requested_dates,
+        requested_roles,
+      }),
+      query: { opt_fields: "resource_subtype,status,new_project.name" },
     });
   }
 );
@@ -469,6 +628,156 @@ tool(
     req("GET", "/memberships", {
       query: { parent: parent_gid, limit: 100, opt_fields: "access_level,member.name" },
     })
+);
+
+// ─── Teams (the People tab) ───────────────────────────────────────────────────
+// What the People tab exposes is teams and team membership, and those ARE writable.
+// What is NOT here, measured 2026-08-27: DELETE /teams/{gid} does not exist at all
+// ("No matching route") — a team can be created and emptied but never deleted; and
+// inviting (POST /users) or deactivating (DELETE /users/{gid}) answer 403, not 404,
+// so those routes exist but a Personal Access Token is not allowed to call them.
+// That is a PERMISSION ceiling (org admin / service account), not a missing feature.
+
+tool(
+  "team_list",
+  {
+    title: "List teams",
+    description:
+      "Teams in the organization. Defaults to the ones you belong to; pass all:true for every team in the org. Use this rather than asana_find when you have no name to search for — typeahead returns nothing for an empty query.",
+    inputSchema: {
+      organization_gid: GID.describe("The organization gid — what asana_whoami returns as the workspace."),
+      all: z.boolean().optional().describe("true = every team in the organization, not just yours."),
+    },
+  },
+  async ({ organization_gid, all }) =>
+    all
+      ? req("GET", `/organizations/${organization_gid}/teams`, {
+          query: { limit: 100, opt_fields: "name,visibility" },
+        })
+      : req("GET", "/users/me/teams", {
+          query: { organization: organization_gid, opt_fields: "name,visibility" },
+        })
+);
+
+tool(
+  "team_get",
+  {
+    title: "Get team",
+    description:
+      "A team's record, including the six access-level settings that decide who in it may invite, remove members, rename it or trash it. Read these before changing a team's membership — they say whether you are allowed to.",
+    inputSchema: { team_gid: GID },
+  },
+  async ({ team_gid }) =>
+    req("GET", `/teams/${team_gid}`, {
+      query: {
+        opt_fields:
+          "name,description,html_description,visibility,permalink_url,organization.name," +
+          "edit_team_name_or_description_access_level,edit_team_visibility_or_trash_team_access_level," +
+          "member_invite_management_access_level,guest_invite_management_access_level," +
+          "join_request_management_access_level,team_member_removal_access_level",
+      },
+    })
+);
+
+tool(
+  "team_create",
+  {
+    title: "Create team",
+    description:
+      "Create a team in the organization. There is no delete for teams in the API — the only way to remove one is the Asana UI, so name it correctly the first time.",
+    inputSchema: {
+      organization_gid: GID.describe("The organization gid — same value asana_whoami returns as the workspace."),
+      name: z.string(),
+      description: z.string().optional(),
+      visibility: z
+        .enum(["secret", "request_to_join", "public"])
+        .optional()
+        .describe("secret = invite only; request_to_join = discoverable; public = anyone in the org can join."),
+    },
+  },
+  async ({ organization_gid, name, description, visibility }) =>
+    req("POST", "/teams", {
+      body: clean({ organization: organization_gid, name, description, visibility }),
+      query: { opt_fields: "name,visibility,permalink_url" },
+    })
+);
+
+tool(
+  "team_update",
+  {
+    title: "Rename / update team",
+    description: "Change a team's name, description or visibility.",
+    inputSchema: {
+      team_gid: GID,
+      name: z.string().optional(),
+      description: z.string().optional(),
+      visibility: z.enum(["secret", "request_to_join", "public"]).optional(),
+    },
+  },
+  async ({ team_gid, name, description, visibility }) =>
+    req("PUT", `/teams/${team_gid}`, {
+      body: clean({ name, description, visibility }),
+      query: { opt_fields: "name,description,visibility" },
+    })
+);
+
+tool(
+  "team_members",
+  {
+    title: "List team members",
+    description:
+      "Everyone in a team, with is_admin / is_guest / is_limited_access per person. This is the People tab's real content.",
+    inputSchema: {
+      team_gid: GID,
+      limit: z.number().int().min(1).max(100).optional(),
+    },
+  },
+  async ({ team_gid, limit }) =>
+    req("GET", "/team_memberships", {
+      query: {
+        team: team_gid,
+        limit: limit ?? 100,
+        opt_fields: "user.name,user.email,is_admin,is_guest,is_limited_access",
+      },
+    })
+);
+
+tool(
+  "team_add_user",
+  {
+    title: "Add person to team",
+    description:
+      "Add someone already in the organization to a team. This does NOT invite a new person into Asana — inviting is an org-admin call a Personal Access Token cannot make (it answers 403).",
+    inputSchema: {
+      team_gid: GID,
+      user: z
+        .string()
+        .describe("User gid, the person's email address, or the literal 'me'. Asana accepts all three."),
+    },
+  },
+  async ({ team_gid, user }) =>
+    req("POST", `/teams/${team_gid}/addUser`, {
+      body: { user },
+      query: { opt_fields: "user.name,is_admin,is_guest" },
+    })
+);
+
+tool(
+  "team_remove_user",
+  {
+    title: "Remove person from team",
+    description:
+      "Take someone out of a team. They keep their Asana account and anything assigned to them, but lose access to the team's projects — which can hide work they are still the assignee of.",
+    inputSchema: {
+      team_gid: GID,
+      user: z.string().describe("User gid, email address, or 'me'."),
+      confirm: CONFIRM,
+    },
+  },
+  async ({ team_gid, user }) => {
+    await req("POST", `/teams/${team_gid}/removeUser`, { body: { user } });
+    return { removed: user, from_team: team_gid };
+  }
 );
 
 // ─── Projects & sections ──────────────────────────────────────────────────────

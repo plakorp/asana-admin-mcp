@@ -1,6 +1,7 @@
 # asana-admin-mcp
 
-MCP server สำหรับ **จัดโครงสร้าง Asana** — portfolio, custom field / dropdown, project, section
+MCP server สำหรับ **จัดโครงสร้าง Asana** — portfolio, custom field / dropdown, project, section,
+project template, team (แท็บ People)
 เติมช่องที่ Asana connector ตัวมาตรฐานทำไม่ได้ (ตัวนั้นเน้น task/read)
 
 ---
@@ -61,7 +62,7 @@ Token อ่านจาก env `ASANA_TOKEN` ก่อน ถ้าไม่ม
 
 ---
 
-## Tools (28)
+## Tools (40)
 
 ทุก tool รับ **gid** ไม่ใช่ชื่อ — ใช้ `asana_find` แปลงชื่อ → gid ก่อน
 
@@ -90,8 +91,16 @@ Token อ่านจาก env `ASANA_TOKEN` ก่อน ถ้าไม่ม
 | `enum_option_update` | **rename** / เปลี่ยนสี / `enabled:false` เพื่อเลิกใช้ |
 | `enum_option_reorder` | **จัดลำดับค่าใน dropdown** |
 | `custom_field_attach` | ผูก field เข้า project หรือ portfolio (`is_important:true` = โชว์เป็นคอลัมน์) |
+| `custom_field_detach` | **ถอด field ออกจาก project/portfolio เดียว** — ตัว field และค่าบนที่อื่นไม่ถูกแตะ |
+| `custom_field_delete` | 🔴 **ลบ field ถาวร** หายจากทุกโปรเจกต์ในองค์กรพร้อมค่าบน task (ต้อง `confirm: true`) — endpoint นี้ **undocumented** |
 
 > Asana **ลบค่า dropdown ไม่ได้** — ทำได้แค่ `enabled:false` งานที่เคยเลือกค่านั้นไว้จะยังเก็บค่าเดิม
+>
+> 🔴 **กับดักที่เกือบหลอกได้ (2026-08-27):** `DELETE /enum_options/{gid}` **มี route จริง** — ตอบ
+> `"enum_option: Not a recognized ID"` ไม่ใช่ `"No matching route"` แต่พอยิงจริงกลับได้
+> **403 `Enum option deletion is forbidden`**
+> ⇒ **route มีอยู่ ≠ เรียกได้** เป็นคนละคำถาม และมีแค่การยิงจริงเท่านั้นที่ตอบข้อหลัง
+> ตรงข้ามกับ `DELETE /custom_fields/{gid}` ที่ undocumented เหมือนกันแต่**ทำงานจริง** (smoke ยืนยัน)
 
 ### Knowledge pages ⚠️ undocumented API
 
@@ -140,6 +149,48 @@ Asana จะแปะบรรทัด `⚠ This table cannot be viewed on Mobi
 
 > เพิ่มเติม: ตารางเกิน ~5 คอลัมน์จะ**ล้นกรอบเนื้อหา** คอลัมน์ขวาสุดโดนตัด — ยุบคอลัมน์ก่อน
 
+### Project template ✅ มีจริง (ที่เคยเข้าใจว่าไม่มี)
+
+| Tool | ทำอะไร |
+|---|---|
+| `template_list` | template ของทีม — **ใน organization ต้องส่ง `team_gid` เท่านั้น** |
+| `template_get` | record เต็ม รวม `requested_roles` / `requested_dates` ที่ต้องตอบตอนสร้าง |
+| `template_instantiate` | สร้างโปรเจกต์จริงจาก template — **default = dry run** ต้องส่ง `execute: true` ถึงจะสร้าง |
+
+> 🔴 **กับดักที่ทำให้ทุกคนสรุปว่า "ไม่มี template API" (วัด 2026-08-27):**
+> `bangkokbank.com` เป็น **organization ไม่ใช่ workspace** ⇒ `GET /project_templates?workspace={gid}`
+> ตอบ 400 *"Not a valid regular workspace. You provided an organization"* ซึ่งอ่านเผิน ๆ เหมือน
+> endpoint พัง ทั้งที่แค่ต้องเปลี่ยนเป็น **`?team={gid}`**
+>
+> ⚠️ **template ไม่พา Dashboard widget ไปด้วย** — ถ้าโปรเจกต์ใหม่ต้องมี chart ให้ใช้ `project_duplicate`
+
+### Team / People
+
+| Tool | ทำอะไร |
+|---|---|
+| `team_list` | ทีมของเรา (หรือ `all:true` = ทั้ง org) — ใช้ตัวนี้แทน `asana_find` เมื่อไม่มีชื่อจะค้น |
+| `team_get` | record ทีม + **6 access-level setting** ที่บอกว่าใครมีสิทธิ์เชิญ/เอาคนออก/เปลี่ยนชื่อ |
+| `team_create` | สร้างทีม (`secret` / `request_to_join` / `public`) |
+| `team_update` | **rename** / description / visibility |
+| `team_members` | คนในทีม พร้อม `is_admin` / `is_guest` / `is_limited_access` |
+| `team_add_user` | เพิ่มคน**ที่อยู่ใน org แล้ว**เข้าทีม (รับ gid / email / `me`) |
+| `team_remove_user` | เอาคนออกจากทีม (ต้อง `confirm: true`) |
+
+> **เพดานที่วัดแล้ว 2026-08-27:**
+> - 🔴 **ลบทีมไม่ได้** — `DELETE /teams/{gid}` ตอบ `No matching route` สร้างแล้วสร้างเลย ตั้งชื่อให้ถูกตั้งแต่แรก
+> - 🟡 **เชิญคนเข้า org / ปิดบัญชี** (`POST /users`, `DELETE /users/{gid}`) ตอบ **403 ไม่ใช่ 404**
+>   ⇒ route มีจริง แต่ **Personal Access Token สิทธิ์ไม่ถึง** ต้องเป็น org admin / service account
+>   นี่คือเพดาน**สิทธิ์** ไม่ใช่เพดาน**ความสามารถ**
+
+### Rule / Form / Dashboard / View — ไม่มี route เลย
+
+ยิงตรงแล้วได้ `No matching route for request` ทุกตัว (2026-08-27):
+`/rules` · `/rule_triggers` · `/projects/{gid}/rules` · `/automations` · `/forms` · `/dashboards` · `/widgets` · `/project_views`
+
+⇒ **upgrade MCP ไม่ช่วย** MCP เป็นแค่ท่อต่อ REST API — ไม่มี endpoint ก็จบ
+(ยกเว้น `POST /rule_triggers/{gid}/run` สำหรับ rule ที่ตั้ง trigger เป็น *Web request is received*
+ซึ่งต้องให้คนก๊อป URL มาให้ เพราะไม่มี `GET /rules` ให้ auto-discover)
+
 ### Project / Section
 | Tool | ทำอะไร |
 |---|---|
@@ -152,7 +203,9 @@ Asana จะแปะบรรทัด `⚠ This table cannot be viewed on Mobi
 | `section_update` | **rename** section |
 | `section_reorder` | **จัดลำดับ** section |
 
-**ไม่มี tool สำหรับลบ project / portfolio / custom field โดยตั้งใจ** — ลบพวกนี้กู้ไม่ได้ ให้ทำในหน้าเว็บ
+**ไม่มี tool สำหรับลบ project / portfolio / team โดยตั้งใจ** — ลบพวกนี้กู้ไม่ได้ ให้ทำในหน้าเว็บ
+(team ลบผ่าน API ไม่ได้อยู่แล้ว — `DELETE /teams/{gid}` ตอบ `No matching route`)
+ส่วน `custom_field_delete` มีให้ แต่บังคับ `confirm: true` และควรลอง `custom_field_detach` ก่อนเสมอ
 
 ---
 
