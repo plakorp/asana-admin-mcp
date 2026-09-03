@@ -203,6 +203,20 @@ Asana จะแปะบรรทัด `⚠ This table cannot be viewed on Mobi
 | `section_update` | **rename** section |
 | `section_reorder` | **จัดลำดับ** section |
 
+### Attachment
+| Tool | ทำอะไร |
+|---|---|
+| `task_attach` | **อัปโหลดไฟล์จากเครื่องขึ้นไปแนบกับ task** (parent เป็น project / project brief ก็ได้) — สูงสุด 100 MB |
+| `task_attachments` | ไฟล์ที่แนบอยู่แล้ว + gid ที่ต้องใช้ตอนลบ |
+| `attachment_delete` | ลบไฟล์ที่แนบ (ต้อง `confirm: true`) |
+
+`/attachments` เป็น endpoint เดียวในเซิร์ฟเวอร์นี้ที่ **ไม่ใช่ JSON** — ต้องส่ง `multipart/form-data`
+เลยไม่ผ่าน `req()` แต่ใช้ `upload()` ใน `client.js` แทน (ห้ามตั้ง header `Content-Type` เอง
+ต้องปล่อยให้ `fetch` เขียน boundary ให้)
+Asana ไม่มี API เอาไฟล์ที่แนบอยู่แล้วไปแปะ task อื่น — ต้องอัปใหม่
+
+---
+
 **ไม่มี tool สำหรับลบ project / portfolio / team โดยตั้งใจ** — ลบพวกนี้กู้ไม่ได้ ให้ทำในหน้าเว็บ
 (team ลบผ่าน API ไม่ได้อยู่แล้ว — `DELETE /teams/{gid}` ตอบ `No matching route`)
 ส่วน `custom_field_delete` มีให้ แต่บังคับ `confirm: true` และควรลอง `custom_field_detach` ก่อนเสมอ

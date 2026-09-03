@@ -2,9 +2,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { req, clean, onePosition } from "./client.js";
+import { req, clean, onePosition, upload } from "./client.js";
 
-const server = new McpServer({ name: "asana-admin", version: "1.3.0" });
+const server = new McpServer({ name: "asana-admin", version: "1.4.0" });
 
 const ok = (data) => ({
   content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -954,6 +954,52 @@ tool(
       body: clean({ section: section_gid, before_section, after_section }),
     });
     return req("GET", `/projects/${project_gid}/sections`, { query: { opt_fields: "name", limit: 100 } });
+  }
+);
+
+// ─── Attachments ──────────────────────────────────────────────────────────────
+
+tool(
+  "task_attach",
+  {
+    title: "Attach a file to a task",
+    description:
+      "Upload a file from this machine and attach it to a task (a project or project brief gid works as the parent too). Asana has no API for re-pointing an existing attachment at a second task — to put the same file on another task, upload it again. Max 100 MB.",
+    inputSchema: {
+      parent_gid: GID.describe("The task that receives the attachment."),
+      file_path: z.string().describe("Absolute path to a file on this machine."),
+      name: z
+        .string()
+        .optional()
+        .describe("Filename to show in Asana. Defaults to the file's own name."),
+    },
+  },
+  async ({ parent_gid, file_path, name }) => upload(parent_gid, file_path, { name })
+);
+
+tool(
+  "task_attachments",
+  {
+    title: "List attachments",
+    description: "Attachments already on a task, with the gid each one needs to be deleted.",
+    inputSchema: { parent_gid: GID },
+  },
+  async ({ parent_gid }) =>
+    req("GET", "/attachments", {
+      query: { parent: parent_gid, opt_fields: "name,resource_subtype,size,created_at,permanent_url", limit: 100 },
+    })
+);
+
+tool(
+  "attachment_delete",
+  {
+    title: "Delete attachment",
+    description: "Remove an attachment. The file is gone from Asana; there is no undo.",
+    inputSchema: { attachment_gid: GID, confirm: CONFIRM },
+  },
+  async ({ attachment_gid }) => {
+    await req("DELETE", `/attachments/${attachment_gid}`);
+    return { deleted: attachment_gid };
   }
 );
 
