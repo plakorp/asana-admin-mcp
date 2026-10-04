@@ -59,6 +59,21 @@ The script asks for your token, runs `npm install`, then writes `~/.claude.json`
 
 > Don't use both methods at once, or you'll get two MCPs both named `asana-admin`.
 
+### Other MCP clients (Claude Desktop, Cursor, …)
+
+Add this to the client's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "asana-admin": {
+      "command": "npx",
+      "args": ["-y", "asana-admin-mcp"]
+    }
+  }
+}
+```
+
 The token is read from the `ASANA_TOKEN` env var first, falling back to `~/.asana_token`.
 → The token never lives in the repo and doesn't need to be in `~/.claude.json`.
 

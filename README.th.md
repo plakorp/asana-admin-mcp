@@ -59,6 +59,21 @@ clone repo แล้วดับเบิลคลิก `install-asana-admin-mc
 
 > อย่าใช้ทั้ง 2 วิธีพร้อมกัน — จะได้ MCP ชื่อ `asana-admin` ซ้อนกัน 2 ตัว
 
+### MCP client อื่น (Claude Desktop, Cursor, …)
+
+ใส่ใน MCP config ของ client:
+
+```json
+{
+  "mcpServers": {
+    "asana-admin": {
+      "command": "npx",
+      "args": ["-y", "asana-admin-mcp"]
+    }
+  }
+}
+```
+
 Token อ่านจาก env `ASANA_TOKEN` ก่อน ถ้าไม่มีค่อย fallback ไป `~/.asana_token`
 → ตัว token ไม่เคยอยู่ในรีโปและไม่ต้องอยู่ใน `~/.claude.json`
 

@@ -1,10 +1,16 @@
 {
   "name": "asana-admin-mcp",
-  "version": "1.4.0",
-  "private": true,
+  "version": "1.4.1",
   "type": "module",
-  "description": "MCP server for Asana structure admin: portfolios, custom fields / dropdown options, projects, sections",
+  "description": "MCP server for Asana structure admin: portfolios, custom fields / dropdown options, projects, sections, project templates, teams, Knowledge pages, attachments",
+  "keywords": ["mcp", "mcp-server", "model-context-protocol", "asana", "claude", "claude-code"],
+  "license": "MIT",
+  "author": "Korn (plakorp)",
+  "homepage": "https://github.com/plakorp/asana-admin-mcp#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/plakorp/asana-admin-mcp.git" },
+  "bugs": { "url": "https://github.com/plakorp/asana-admin-mcp/issues" },
   "bin": { "asana-admin-mcp": "src/index.js" },
+  "files": ["src", "GET-TOKEN.md"],
   "scripts": {
     "start": "node src/index.js",
     "smoke": "node scripts/smoke.js"
