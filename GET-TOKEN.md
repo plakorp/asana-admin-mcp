@@ -1,78 +1,84 @@
-# วิธีเอา Asana Personal Access Token
+# How to get an Asana Personal Access Token
 
-ใช้เวลา ~1 นาที ทำครั้งเดียว
+Takes ~1 minute, once.
 
 ---
 
-## 1. เปิดหน้า Developer console
+## 1. Open the Developer console
 
 ```
 https://app.asana.com/0/my-apps
 ```
 
-(ถ้าอยากไปจากในแอป: คลิกรูปโปรไฟล์มุมขวาบน → **Settings** → แท็บ **Apps** → **Manage developer apps**)
+(From inside the app: click your profile picture top right → **Settings** → **Apps** tab → **Manage developer apps**)
 
-## 2. หา section **Personal access tokens** → กด **+ Create new token**
+## 2. Find the **Personal access tokens** section → click **+ Create new token**
 
-## 3. ตั้งชื่อ token
+## 3. Name the token
 
-ใส่ชื่อที่บอกได้ว่าใครใช้ เช่น
+Use a name that tells you what it's for, e.g.
 
 ```
 claude-code-mcp
 ```
 
-ชื่อนี้จะโผล่ในหน้า console เวลาจะมาเพิกถอนทีหลัง — ตั้งให้รู้เรื่อง
+This name shows up in the console when you want to revoke it later, so make it recognizable.
 
-## 4. ติ๊กยอมรับ API terms → **Create token**
+## 4. Accept the API terms → **Create token**
 
-## 5. ก๊อป token ทันที
+## 5. Copy the token right away
 
-> ⚠️ **Asana โชว์ token ให้เห็นครั้งเดียว** ปิดหน้าต่างแล้วดูซ้ำไม่ได้
-> ถ้าพลาด — ลบตัวเก่าแล้วสร้างใหม่ได้ ไม่มีอะไรเสียหาย
+> ⚠️ **Asana shows the token only once.** Once you close the window you can't see it again.
+> If you miss it, delete the old one and create a new one. Nothing breaks.
 
-## 6. เอา token มาใส่
+## 6. Save the token
 
-ดับเบิลคลิกไฟล์นี้:
+If you installed the plugin, run:
+
+```bash
+printf '%s' 'PASTE_TOKEN_HERE' > ~/.asana_token && chmod 600 ~/.asana_token
+```
+
+If you're doing the manual install, double-click this file in the cloned repo instead (macOS):
 
 ```
-~/Desktop/Claude/mcp/asana-admin-mcp/ติดตั้ง-asana-admin-mcp.command
+install-asana-admin-mcp.command
 ```
 
-มันจะถามหา token แบบ **ไม่แสดงตัวอักษรบนจอ** → วาง (`⌘V`) แล้ว Enter
-สคริปต์จะเก็บไว้ที่ `~/.asana_token` สิทธิ์ `600` (อ่านได้เฉพาะ user คุณ) แล้วลงทะเบียน MCP ให้เอง
+It asks for the token **without echoing it on screen** → paste (`⌘V`) and press Enter.
+The script saves it to `~/.asana_token` with permission `600` (readable only by your user) and registers the MCP for you.
 
 ---
 
-## เช็คว่า token ใช้ได้
+## Check the token works
 
 ```bash
 curl -s -H "Authorization: Bearer $(cat ~/.asana_token)" https://app.asana.com/api/1.0/users/me | python3 -m json.tool
 ```
 
-ควรได้ชื่อ + email + รายการ workspace ของคุณ (ไม่มี token โผล่ใน output)
+You should see your name + email + list of workspaces (the token itself never appears in the output).
 
-ถ้าได้ `401 Not Authorized` → token ผิดหรือถูกเพิกถอน สร้างใหม่
+If you get `401 Not Authorized` → the token is wrong or revoked. Create a new one.
 
 ---
 
-## เรื่องที่ควรรู้
+## Good to know
 
-| เรื่อง | รายละเอียด |
+| Topic | Details |
 |---|---|
-| **สิทธิ์** | token = สิทธิ์เท่าตัวคุณเป๊ะ ๆ ไม่มี scope ให้จำกัด — เห็นและแก้ได้ทุกอย่างที่คุณเห็นและแก้ได้ในเว็บ |
-| **วันหมดอายุ** | Asana ไม่ประกาศวันหมดอายุตายตัว ใช้ได้จนกว่าจะเพิกถอนเอง |
-| **จำนวน** | สร้างได้หลายอัน แต่ไม่ไม่จำกัด — ลบอันเก่าที่ไม่ใช้ทิ้ง |
-| **เพิกถอน** | กลับไปหน้าเดิม กด Deactivate ข้างชื่อ token — มีผลทันที |
-| **ถ้า BBL ล็อกไว้** | บาง org ปิดไม่ให้พนักงานสร้าง developer app ถ้ากดแล้วขึ้น error ต้องให้ Asana admin เปิดให้ก่อน |
-| **อย่าทำ** | อย่าวาง token ลงในแชท, commit เข้า git, หรือใส่ใน `~/.claude.json` — ให้อยู่ในไฟล์ `~/.asana_token` ที่เดียว |
+| **Permissions** | A token has exactly your permissions. There are no scopes to limit it: it can see and edit everything you can in the web app |
+| **Expiry** | Asana doesn't publish a fixed expiry. It works until you revoke it |
+| **How many** | You can create several, but not unlimited. Delete old ones you don't use |
+| **Revoking** | Go back to the same page and click Deactivate next to the token name. Takes effect immediately |
+| **If your org blocks it** | Some orgs don't let employees create developer apps. If you get an error, ask your Asana admin to enable it first |
+| **Don't** | Don't paste the token into a chat, commit it to git, or put it in `~/.claude.json`. Keep it only in `~/.asana_token` |
 
 ---
 
-## เปลี่ยน token ทีหลัง
+## Changing the token later
 
 ```bash
-printf '%s' 'TOKEN_ใหม่' > ~/.asana_token && chmod 600 ~/.asana_token
+printf '%s' 'NEW_TOKEN' > ~/.asana_token && chmod 600 ~/.asana_token
 ```
 
-ไม่ต้องแก้ config อะไร — MCP อ่านจากไฟล์นี้ทุกครั้งที่เริ่มทำงาน
+No config changes needed. The MCP reads this file every time it starts.

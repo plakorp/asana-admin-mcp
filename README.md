@@ -1,248 +1,250 @@
 # asana-admin-mcp
 
-MCP server สำหรับ **จัดโครงสร้าง Asana** — portfolio, custom field / dropdown, project, section,
-project template, team (แท็บ People)
-เติมช่องที่ Asana connector ตัวมาตรฐานทำไม่ได้ (ตัวนั้นเน้น task/read)
+[ภาษาไทย](README.th.md)
+
+MCP server for **Asana structure admin**: portfolios, custom fields / dropdowns, projects, sections,
+project templates, teams (the People tab), Knowledge pages and file attachments.
+It fills the gaps the standard Asana connector leaves open (that one focuses on tasks and reading).
 
 ---
 
-## ⚠️ Dashboard ทำไม่ได้ — และไม่ใช่ข้อจำกัดของ MCP ตัวนี้
+## ⚠️ Dashboards can't be automated, and it isn't this MCP's limit
 
-Asana **ไม่เปิด public API สำหรับ Dashboard / chart / widget / project view tab** เลย
-(ไล่ครบ 175 endpoints ใน [OpenAPI spec ทางการ](https://github.com/Asana/openapi) — ไม่มีสักตัว)
+Asana has **no public API for Dashboards / charts / widgets / project view tabs**
+(checked all 175 endpoints in the [official OpenAPI spec](https://github.com/Asana/openapi): none exist).
 
-ทางเดียวที่ automate ได้คือ **`project_duplicate`** — สเปคระบุว่าเวลา duplicate project นั้น
-Project Views (แท็บ List / Board / Dashboard) ถูกก๊อปตามไปเสมอและปิดไม่ได้
-→ ตั้ง Dashboard ไว้ใน "โปรเจกต์ต้นแบบ" หนึ่งอัน แล้ว duplicate ทุกครั้งที่ต้องการโปรเจกต์ใหม่
+The only thing you can automate is **`project_duplicate`**. The spec says that when a project is duplicated,
+its Project Views (List / Board / Dashboard tabs) are always copied and this can't be turned off.
+→ Set up the Dashboard once in a "template project", then duplicate it every time you need a new project.
 
-> 🟡 **ยังไม่ได้พิสูจน์:** สเปคเขียนว่า "Project Views" ตามไป แต่ไม่ได้บอกชัดว่า **chart ที่ตั้งไว้ใน Dashboard**
-> ตามไปด้วยหรือได้แค่แท็บเปล่า — ตรวจไม่ได้ผ่าน API (ไม่มี endpoint ให้อ่าน chart) ต้องเปิดดูด้วยตา
-> smoke test 2026-08-17 duplicate โปรเจกต์ที่ไม่มี chart จึงยังไม่ตอบข้อนี้
+> 🟡 **Not proven yet:** the spec says "Project Views" are copied, but doesn't say whether the **charts inside a Dashboard**
+> come along or only an empty tab. The API can't check this (no endpoint reads charts), so you have to look.
+> The 2026-08-17 smoke test duplicated a project with no charts, so it doesn't answer this.
 
-หมายเหตุ: **Project Template ไม่พา Dashboard ไปด้วย** (ยังเป็น feature request ค้างอยู่ในฟอรัม Asana)
-ต้องใช้ duplicate ไม่ใช่ template
+Note: **Project Templates don't carry Dashboards** (still an open feature request on the Asana forum).
+Use duplicate, not a template.
 
 ---
 
-## ติดตั้ง
+## Install
 
-### 1. เอา Asana token ก่อน (ทุกคนต้องมีของตัวเอง)
+### 1. Get an Asana token first (everyone needs their own)
 
-ทำตาม **[GET-TOKEN.md](GET-TOKEN.md)** → เซฟไว้ที่ `~/.asana_token`
+Follow **[GET-TOKEN.md](GET-TOKEN.md)** → save it to `~/.asana_token`
 
 ```bash
-printf '%s' 'วาง_token_ตรงนี้' > ~/.asana_token && chmod 600 ~/.asana_token
+printf '%s' 'PASTE_TOKEN_HERE' > ~/.asana_token && chmod 600 ~/.asana_token
 ```
 
-> token ผูกกับสิทธิ์รายบุคคล **ห้ามใช้ของคนอื่น** — log ใน Asana จะขึ้นชื่อเจ้าของ token
+> A token carries one person's permissions. **Never use someone else's**: Asana logs every change under the token owner's name.
 
-### 2. ติดตั้ง plugin (แนะนำ)
+### 2. Install the plugin (recommended)
 
-ใน Claude Code พิมพ์ 2 บรรทัด:
+In Claude Code, type these 2 lines:
 
 ```
 /plugin marketplace add plakorp/asana-admin-mcp
 /plugin install asana-admin@asana-admin-mcp
 ```
 
-Claude Code จะ clone repo + รัน `npm ci` ให้เอง แล้วลงทะเบียน MCP ให้ — ไม่ต้องแตะ `~/.claude.json`
-อัปเดตทีหลังก็ `/plugin update`
+Claude Code clones the repo, runs `npm ci` and registers the MCP for you. No need to touch `~/.claude.json`.
+To update later: `/plugin update`
 
-ต้องมี **Node 20+** ในเครื่อง (`node -v` เช็ก)
+Requires **Node 20+** (check with `node -v`).
 
-### วิธีที่ 2 — ติดตั้งมือ (ถ้าไม่อยากใช้ plugin)
+### Option 2: manual install (if you don't want the plugin)
 
-clone repo แล้วดับเบิลคลิก `ติดตั้ง-asana-admin-mcp.command`
-สคริปต์จะขอ token, รัน `npm install`, แล้วเขียน `~/.claude.json` ให้ (backup ทุกครั้ง)
+Clone the repo and double-click `install-asana-admin-mcp.command` (macOS).
+The script asks for your token, runs `npm install`, then writes `~/.claude.json` for you (backing it up every time).
 
-> อย่าใช้ทั้ง 2 วิธีพร้อมกัน — จะได้ MCP ชื่อ `asana-admin` ซ้อนกัน 2 ตัว
+> Don't use both methods at once, or you'll get two MCPs both named `asana-admin`.
 
-Token อ่านจาก env `ASANA_TOKEN` ก่อน ถ้าไม่มีค่อย fallback ไป `~/.asana_token`
-→ ตัว token ไม่เคยอยู่ในรีโปและไม่ต้องอยู่ใน `~/.claude.json`
+The token is read from the `ASANA_TOKEN` env var first, falling back to `~/.asana_token`.
+→ The token never lives in the repo and doesn't need to be in `~/.claude.json`.
 
 ---
 
 ## Tools (40)
 
-ทุก tool รับ **gid** ไม่ใช่ชื่อ — ใช้ `asana_find` แปลงชื่อ → gid ก่อน
+Every tool takes a **gid**, not a name. Use `asana_find` to turn a name into a gid first.
 
 ### Discovery
-| Tool | ทำอะไร |
+| Tool | What it does |
 |---|---|
-| `asana_whoami` | ตัวเอง + workspace ทั้งหมด (เริ่มที่นี่ เพราะเกือบทุก create ต้องใช้ `workspace_gid`) |
-| `asana_find` | typeahead หา gid จากชื่อ — project / portfolio / custom_field / task / team / user / tag / goal |
-| `asana_list_custom_fields` | custom field ใน workspace หรือที่ผูกกับ project/portfolio — **คืน `enum_options` พร้อม gid** ซึ่งเป็น input ของทุก tool กลุ่ม dropdown |
+| `asana_whoami` | You + all your workspaces (start here: almost every create needs a `workspace_gid`) |
+| `asana_find` | Typeahead lookup from name to gid: project / portfolio / custom_field / task / team / user / tag / goal |
+| `asana_list_custom_fields` | Custom fields in a workspace, or attached to a project/portfolio. **Returns `enum_options` with gids**, which every dropdown tool takes as input |
 
 ### Portfolio
-| Tool | ทำอะไร |
+| Tool | What it does |
 |---|---|
-| `portfolio_create` | สร้าง portfolio |
-| `portfolio_update` | **rename** / เปลี่ยนสี / public |
-| `portfolio_list_items` | ดูโปรเจกต์ใน portfolio ตามลำดับที่แสดงจริง |
-| `portfolio_add_item` | **เพิ่มโปรเจกต์เข้า portfolio** + ระบุตำแหน่งได้ (`insert_before` / `insert_after`) — เรียกซ้ำกับ item ที่มีอยู่แล้ว = **ย้ายตำแหน่ง** |
-| `portfolio_remove_item` | ถอดโปรเจกต์ออก (ต้องส่ง `confirm: true`) |
+| `portfolio_create` | Create a portfolio |
+| `portfolio_update` | **Rename** / change color / public |
+| `portfolio_list_items` | Projects in a portfolio, in the order they're actually shown |
+| `portfolio_add_item` | **Add a project to a portfolio** at a chosen position (`insert_before` / `insert_after`). Calling it again on an existing item **moves** it |
+| `portfolio_remove_item` | Remove a project (requires `confirm: true`) |
 
 ### Custom field / dropdown
-| Tool | ทำอะไร |
+| Tool | What it does |
 |---|---|
-| `custom_field_create` | สร้าง field — `enum` (dropdown เลือกอันเดียว) / `multi_enum` / text / number / date / people |
-| `custom_field_update` | **rename** / แก้ description |
-| `enum_option_create` | **เพิ่มค่าใน dropdown** + ระบุตำแหน่งได้ |
-| `enum_option_update` | **rename** / เปลี่ยนสี / `enabled:false` เพื่อเลิกใช้ |
-| `enum_option_reorder` | **จัดลำดับค่าใน dropdown** |
-| `custom_field_attach` | ผูก field เข้า project หรือ portfolio (`is_important:true` = โชว์เป็นคอลัมน์) |
-| `custom_field_detach` | **ถอด field ออกจาก project/portfolio เดียว** — ตัว field และค่าบนที่อื่นไม่ถูกแตะ |
-| `custom_field_delete` | 🔴 **ลบ field ถาวร** หายจากทุกโปรเจกต์ในองค์กรพร้อมค่าบน task (ต้อง `confirm: true`) — endpoint นี้ **undocumented** |
+| `custom_field_create` | Create a field: `enum` (single-select dropdown) / `multi_enum` / text / number / date / people |
+| `custom_field_update` | **Rename** / edit description |
+| `enum_option_create` | **Add a dropdown option** at a chosen position |
+| `enum_option_update` | **Rename** / change color / `enabled:false` to retire it |
+| `enum_option_reorder` | **Reorder dropdown options** |
+| `custom_field_attach` | Attach a field to a project or portfolio (`is_important:true` = show it as a column) |
+| `custom_field_detach` | **Detach a field from one project/portfolio.** The field itself and its values elsewhere are untouched |
+| `custom_field_delete` | 🔴 **Delete a field permanently.** It disappears from every project in the org, along with its values on tasks (requires `confirm: true`). This endpoint is **undocumented** |
 
-> Asana **ลบค่า dropdown ไม่ได้** — ทำได้แค่ `enabled:false` งานที่เคยเลือกค่านั้นไว้จะยังเก็บค่าเดิม
+> Asana **can't delete dropdown options**, only `enabled:false`. Tasks that already use that option keep their value.
 >
-> 🔴 **กับดักที่เกือบหลอกได้ (2026-08-27):** `DELETE /enum_options/{gid}` **มี route จริง** — ตอบ
-> `"enum_option: Not a recognized ID"` ไม่ใช่ `"No matching route"` แต่พอยิงจริงกลับได้
-> **403 `Enum option deletion is forbidden`**
-> ⇒ **route มีอยู่ ≠ เรียกได้** เป็นคนละคำถาม และมีแค่การยิงจริงเท่านั้นที่ตอบข้อหลัง
-> ตรงข้ามกับ `DELETE /custom_fields/{gid}` ที่ undocumented เหมือนกันแต่**ทำงานจริง** (smoke ยืนยัน)
+> 🔴 **A trap that nearly fooled us (2026-08-27):** `DELETE /enum_options/{gid}` **has a real route**. It answers
+> `"enum_option: Not a recognized ID"`, not `"No matching route"`, but a real call returns
+> **403 `Enum option deletion is forbidden`**.
+> ⇒ **A route existing ≠ being allowed to call it.** They're separate questions, and only a real call answers the second.
+> Compare `DELETE /custom_fields/{gid}`: also undocumented, but it **works** (confirmed by the smoke test).
 
 ### Knowledge pages ⚠️ undocumented API
 
-| Tool | ทำอะไร |
+| Tool | What it does |
 |---|---|
-| `page_create` | สร้างหน้าใน **Knowledge → Pages** |
-| `page_update` | **rename** / แก้เนื้อหา / privacy |
-| `page_get` | อ่านหน้าเต็มรวม `html_text` |
-| `page_list` | หน้าทั้งหมดใน workspace |
+| `page_create` | Create a page in **Knowledge → Pages** |
+| `page_update` | **Rename** / edit content / privacy |
+| `page_get` | Read a full page including `html_text` |
+| `page_list` | All pages in a workspace |
 
-> 🔴 **Asana ไม่ประกาศ endpoint นี้ที่ไหนเลย** — ไม่มีใน OpenAPI spec และไม่มีใน
-> `developers.asana.com/llms.txt` ค้นพบด้วยการ probe ตรง ๆ เมื่อ 2026-08-17
-> Knowledge Page = resource ชื่อ **`note`** (`/notes`, permalink `/note/{gid}`)
-> **ของที่ไม่ประกาศเปลี่ยนได้ทุกเมื่อ** — ถ้าวันหนึ่ง 404 นั่นคือ Asana ไม่ใช่บั๊กของเรา
-> `npm run smoke` ครอบคลุมส่วนนี้ไว้เพื่อให้รู้ตัวเร็ว
+> 🔴 **Asana doesn't document this endpoint anywhere.** It's not in the OpenAPI spec or in
+> `developers.asana.com/llms.txt`. Found by probing directly on 2026-08-17.
+> A Knowledge Page is a resource called **`note`** (`/notes`, permalink `/note/{gid}`).
+> **Undocumented things can change at any time.** If it starts returning 404 one day, that's Asana, not a bug here.
+> `npm run smoke` covers this so you find out fast.
 
-**ข้อจำกัดของ HTML ที่วัดเอง:**
-- `<p>` **ใช้ไม่ได้** → `xml_parsing_error` (ขึ้นบรรทัดใหม่ด้วย newline แทน)
-- `<h1>` `<h2>` ส่งได้ แต่ถูกเก็บเป็น `<strong>` — **ระดับหัวข้อไม่รอด**
-- ใช้ได้: `strong` `em` `u` `s` `ul` `ol` `li` `a` `blockquote` `code` `pre` `hr` `img` **`table`**
-- `privacy_setting`: `members_only` (ค่าตั้งต้น) | `public_to_domain`
+**HTML limits (measured):**
+- `<p>` **doesn't work** → `xml_parsing_error` (use newlines for line breaks)
+- `<h1>` `<h2>` are accepted but stored as `<strong>`, so **heading levels are lost**
+- Works: `strong` `em` `u` `s` `ul` `ol` `li` `a` `blockquote` `code` `pre` `hr` `img` **`table`**
+- `privacy_setting`: `members_only` (default) | `public_to_domain`
 
-#### 🔴 4 กับดักที่ทำให้คนคิดว่า "ทำไม่ได้" (วัดจริง 2026-08-21)
+#### 🔴 4 traps that make people think "it can't be done" (measured 2026-08-21)
 
-**1. ตารางทำได้ — แต่ไม่มีเขียนไว้ที่ไหนเลย**
-ส่ง `<table><tr><td>…</td></tr></table>` ได้ตรง ๆ Asana เก็บเป็น **native table จริง** ไม่ใช่ข้อความ
-ไม่มี `thead` / `th` — ทำหัวตารางด้วยการใส่ `<strong>` ในเซลล์แถวแรก
-Asana จะแปะบรรทัด `⚠ This table cannot be viewed on Mobile` ให้เองเหนือตาราง (เราไม่ต้องเขียน)
+**1. Tables work, but this isn't written down anywhere**
+Send `<table><tr><td>…</td></tr></table>` directly and Asana stores it as a **real native table**, not text.
+There's no `thead` / `th`: make a header row by putting `<strong>` in the first row's cells.
+Asana adds a `⚠ This table cannot be viewed on Mobile` line above the table by itself (you don't write it).
 
-**2. `page_get` อ่านตารางกลับมาไม่ได้ — ห้ามใช้ตัดสินว่าเขียนสำเร็จไหม**
-ตารางที่อยู่บนหน้าจะคืนมาเป็นบรรทัด placeholder เปล่า ๆ:
+**2. `page_get` can't read tables back, so don't use it to judge whether a write worked**
+A table on the page comes back as an empty placeholder line:
 ```html
 <i>⚠ This table cannot be viewed on Mobile. Please view it on Web. ⚠</i>
 ```
-ไม่มีแถว ไม่มีเซลล์เลย → **ยืนยันด้วยการเปิดเว็บดูเท่านั้น** ถ้าดูจาก `page_get` จะสรุปผิดว่าโดน strip
+No rows, no cells → **only the web UI can confirm it.** Going by `page_get`, you'd wrongly conclude the table was stripped.
 
-**3. ⚠️ round-trip ลบตารางทิ้งแบบเงียบ ๆ**
-`html_text` = **replace ทั้ง body ไม่ใช่ append** → การเพิ่มเนื้อหาต้อง `page_get` แล้วต่อ string เอง
-แต่เพราะข้อ 2 การ `page_get` → `page_update` ธรรมดา **จะลบตารางเดิมที่มีอยู่บนหน้าไปทั้งหมด**
-ก่อนเขียนทับหน้าที่ไม่ได้เขียนเอง → เปิดเว็บเช็คก่อนว่ามีตารางอยู่ไหม
+**3. ⚠️ A round-trip silently deletes tables**
+`html_text` **replaces the whole body; it doesn't append** → to add content you `page_get` and concatenate the string yourself.
+But because of trap 2, a plain `page_get` → `page_update` **deletes every existing table on the page.**
+Before overwriting a page you didn't write → check the web UI for tables first.
 
-**4. link ต้องรอ enrich — ไม่ใช่พัง**
-ใส่ permalink ธรรมดาใน `href` แล้ว Asana จะ enrich เป็น mention ให้เอง
-แต่ **หลังเขียนเสร็จทันทีจะยังโชว์เป็น URL ดิบ ต้อง reload ก่อน**
-และ label ที่แสดงจะถูกเขียนทับด้วยชื่อจริงของ page เสมอ ไม่ว่าจะใส่ข้อความอะไรไว้
+**4. Links need time to enrich; they aren't broken**
+Put a plain permalink in `href` and Asana enriches it into a mention by itself,
+but **right after writing it still shows as a raw URL until you reload**.
+The displayed label is always replaced with the page's real name, whatever text you put in.
 
-> เพิ่มเติม: ตารางเกิน ~5 คอลัมน์จะ**ล้นกรอบเนื้อหา** คอลัมน์ขวาสุดโดนตัด — ยุบคอลัมน์ก่อน
+> Also: tables wider than ~5 columns **overflow the content area** and the rightmost columns get cut off. Merge columns first.
 
-### Project template ✅ มีจริง (ที่เคยเข้าใจว่าไม่มี)
+### Project template ✅ exists (contrary to what we first thought)
 
-| Tool | ทำอะไร |
+| Tool | What it does |
 |---|---|
-| `template_list` | template ของทีม — **ใน organization ต้องส่ง `team_gid` เท่านั้น** |
-| `template_get` | record เต็ม รวม `requested_roles` / `requested_dates` ที่ต้องตอบตอนสร้าง |
-| `template_instantiate` | สร้างโปรเจกต์จริงจาก template — **default = dry run** ต้องส่ง `execute: true` ถึงจะสร้าง |
+| `template_list` | A team's templates. **In an organization you must pass `team_gid`** |
+| `template_get` | Full record, including the `requested_roles` / `requested_dates` you must answer when instantiating |
+| `template_instantiate` | Create a real project from a template. **Defaults to a dry run**; pass `execute: true` to actually create it |
 
-> 🔴 **กับดักที่ทำให้ทุกคนสรุปว่า "ไม่มี template API" (วัด 2026-08-27):**
-> `bangkokbank.com` เป็น **organization ไม่ใช่ workspace** ⇒ `GET /project_templates?workspace={gid}`
-> ตอบ 400 *"Not a valid regular workspace. You provided an organization"* ซึ่งอ่านเผิน ๆ เหมือน
-> endpoint พัง ทั้งที่แค่ต้องเปลี่ยนเป็น **`?team={gid}`**
+> 🔴 **The trap that makes everyone conclude "there's no template API" (measured 2026-08-27):**
+> If your Asana domain is an **organization, not a workspace** (most company domains are), `GET /project_templates?workspace={gid}`
+> returns 400 *"Not a valid regular workspace. You provided an organization"*, which at a glance looks like a broken
+> endpoint. You just need to switch to **`?team={gid}`**.
 >
-> ⚠️ **template ไม่พา Dashboard widget ไปด้วย** — ถ้าโปรเจกต์ใหม่ต้องมี chart ให้ใช้ `project_duplicate`
+> ⚠️ **Templates don't carry Dashboard widgets.** If the new project needs charts, use `project_duplicate`.
 
 ### Team / People
 
-| Tool | ทำอะไร |
+| Tool | What it does |
 |---|---|
-| `team_list` | ทีมของเรา (หรือ `all:true` = ทั้ง org) — ใช้ตัวนี้แทน `asana_find` เมื่อไม่มีชื่อจะค้น |
-| `team_get` | record ทีม + **6 access-level setting** ที่บอกว่าใครมีสิทธิ์เชิญ/เอาคนออก/เปลี่ยนชื่อ |
-| `team_create` | สร้างทีม (`secret` / `request_to_join` / `public`) |
-| `team_update` | **rename** / description / visibility |
-| `team_members` | คนในทีม พร้อม `is_admin` / `is_guest` / `is_limited_access` |
-| `team_add_user` | เพิ่มคน**ที่อยู่ใน org แล้ว**เข้าทีม (รับ gid / email / `me`) |
-| `team_remove_user` | เอาคนออกจากทีม (ต้อง `confirm: true`) |
+| `team_list` | Your teams (or `all:true` = the whole org). Use this instead of `asana_find` when you have no name to search for |
+| `team_get` | Team record + **6 access-level settings** that say who can invite / remove members / rename |
+| `team_create` | Create a team (`secret` / `request_to_join` / `public`) |
+| `team_update` | **Rename** / description / visibility |
+| `team_members` | Team members with `is_admin` / `is_guest` / `is_limited_access` |
+| `team_add_user` | Add someone **already in the org** to a team (takes gid / email / `me`) |
+| `team_remove_user` | Remove someone from a team (requires `confirm: true`) |
 
-> **เพดานที่วัดแล้ว 2026-08-27:**
-> - 🔴 **ลบทีมไม่ได้** — `DELETE /teams/{gid}` ตอบ `No matching route` สร้างแล้วสร้างเลย ตั้งชื่อให้ถูกตั้งแต่แรก
-> - 🟡 **เชิญคนเข้า org / ปิดบัญชี** (`POST /users`, `DELETE /users/{gid}`) ตอบ **403 ไม่ใช่ 404**
->   ⇒ route มีจริง แต่ **Personal Access Token สิทธิ์ไม่ถึง** ต้องเป็น org admin / service account
->   นี่คือเพดาน**สิทธิ์** ไม่ใช่เพดาน**ความสามารถ**
+> **Ceilings measured 2026-08-27:**
+> - 🔴 **Teams can't be deleted.** `DELETE /teams/{gid}` returns `No matching route`. Once created, it stays, so name it right the first time.
+> - 🟡 **Inviting people to the org / deactivating accounts** (`POST /users`, `DELETE /users/{gid}`) returns **403, not 404**
+>   ⇒ the route exists, but a **Personal Access Token doesn't have the permission**. It needs an org admin / service account.
+>   This is a **permission** ceiling, not a **capability** ceiling.
 
-### Rule / Form / Dashboard / View — ไม่มี route เลย
+### Rule / Form / Dashboard / View: no routes at all
 
-ยิงตรงแล้วได้ `No matching route for request` ทุกตัว (2026-08-27):
+Calling these directly returns `No matching route for request` for every one (2026-08-27):
 `/rules` · `/rule_triggers` · `/projects/{gid}/rules` · `/automations` · `/forms` · `/dashboards` · `/widgets` · `/project_views`
 
-⇒ **upgrade MCP ไม่ช่วย** MCP เป็นแค่ท่อต่อ REST API — ไม่มี endpoint ก็จบ
-(ยกเว้น `POST /rule_triggers/{gid}/run` สำหรับ rule ที่ตั้ง trigger เป็น *Web request is received*
-ซึ่งต้องให้คนก๊อป URL มาให้ เพราะไม่มี `GET /rules` ให้ auto-discover)
+⇒ **Upgrading the MCP won't help.** An MCP is just a pipe to the REST API; no endpoint, no feature.
+(The exception is `POST /rule_triggers/{gid}/run`, for rules whose trigger is *Web request is received*.
+Someone has to copy that URL for you, because there's no `GET /rules` to discover it automatically.)
 
 ### Project / Section
-| Tool | ทำอะไร |
+| Tool | What it does |
 |---|---|
-| `project_create` | สร้างโปรเจกต์ (ใน organization ต้องมี `team_gid`) |
-| `project_update` | **rename** / notes / สี / `default_view` / archive |
-| `project_set_fields` | **เขียนค่า custom field ของ project** — ทางเดียวที่จะเติมคอลัมน์ที่เห็นใน portfolio List view เพราะค่าอยู่บน project ไม่ใช่บน portfolio |
-| `project_duplicate` | ก๊อปโปรเจกต์ **พา Dashboard ไปด้วย** — ทางออกเดียวของเรื่อง dashboard (คืน job, ทำงาน async) |
-| `project_list_sections` | section ตามลำดับ + gid |
-| `section_create` | เพิ่ม section + ระบุตำแหน่งได้ |
-| `section_update` | **rename** section |
-| `section_reorder` | **จัดลำดับ** section |
+| `project_create` | Create a project (in an organization it needs a `team_gid`) |
+| `project_update` | **Rename** / notes / color / `default_view` / archive |
+| `project_set_fields` | **Write a project's custom field values.** The only way to fill the columns you see in a portfolio's List view, because those values live on the project, not the portfolio |
+| `project_duplicate` | Copy a project **including its Dashboard**: the only workaround for dashboards (returns a job, runs async) |
+| `project_list_sections` | Sections in order, with gids |
+| `section_create` | Add a section at a chosen position |
+| `section_update` | **Rename** a section |
+| `section_reorder` | **Reorder** sections |
 
 ### Attachment
-| Tool | ทำอะไร |
+| Tool | What it does |
 |---|---|
-| `task_attach` | **อัปโหลดไฟล์จากเครื่องขึ้นไปแนบกับ task** (parent เป็น project / project brief ก็ได้) — สูงสุด 100 MB |
-| `task_attachments` | ไฟล์ที่แนบอยู่แล้ว + gid ที่ต้องใช้ตอนลบ |
-| `attachment_delete` | ลบไฟล์ที่แนบ (ต้อง `confirm: true`) |
+| `task_attach` | **Upload a local file and attach it to a task** (the parent can also be a project / project brief). Up to 100 MB |
+| `task_attachments` | Files already attached, plus the gids you need to delete them |
+| `attachment_delete` | Delete an attachment (requires `confirm: true`) |
 
-`/attachments` เป็น endpoint เดียวในเซิร์ฟเวอร์นี้ที่ **ไม่ใช่ JSON** — ต้องส่ง `multipart/form-data`
-เลยไม่ผ่าน `req()` แต่ใช้ `upload()` ใน `client.js` แทน (ห้ามตั้ง header `Content-Type` เอง
-ต้องปล่อยให้ `fetch` เขียน boundary ให้)
-Asana ไม่มี API เอาไฟล์ที่แนบอยู่แล้วไปแปะ task อื่น — ต้องอัปใหม่
-
----
-
-**ไม่มี tool สำหรับลบ project / portfolio / team โดยตั้งใจ** — ลบพวกนี้กู้ไม่ได้ ให้ทำในหน้าเว็บ
-(team ลบผ่าน API ไม่ได้อยู่แล้ว — `DELETE /teams/{gid}` ตอบ `No matching route`)
-ส่วน `custom_field_delete` มีให้ แต่บังคับ `confirm: true` และควรลอง `custom_field_detach` ก่อนเสมอ
+`/attachments` is the only endpoint in this server that **isn't JSON**: it takes `multipart/form-data`,
+so it skips `req()` and uses `upload()` in `client.js` instead. (Never set the `Content-Type` header yourself;
+let `fetch` write the boundary.)
+Asana has no API to attach an existing attachment to another task; you have to upload it again.
 
 ---
 
-## สี (ใช้ได้กับ portfolio / project / enum option)
+**There are deliberately no tools to delete a project / portfolio / team.** Those deletes can't be undone, so do them in the web UI.
+(Teams can't be deleted through the API anyway: `DELETE /teams/{gid}` returns `No matching route`.)
+`custom_field_delete` is available, but requires `confirm: true`, and you should always try `custom_field_detach` first.
+
+---
+
+## Colors (for portfolios / projects / enum options)
 
 `none` `red` `orange` `yellow-orange` `yellow` `yellow-green` `green` `blue-green`
 `aqua` `blue` `indigo` `purple` `magenta` `hot-pink` `pink` `cool-gray`
 
 ---
 
-## ทดสอบ
+## Testing
 
 ```bash
 ASANA_TOKEN=$(cat ~/.asana_token) npm run smoke
 ```
 
-สร้างของจริงใน workspace แรกของ token ชื่อขึ้นต้น `ZZ-mcp-smoke-*` → ตรวจทุก tool → **ลบทิ้งเองทั้งหมด**
-ถ้าไม่ใส่ token จะรันแค่ครึ่งแรก (server boot + list tools)
+Creates real objects in the token's first workspace, named `ZZ-mcp-smoke-*` → checks every tool → **deletes everything it created**.
+Without a token it runs only the first half (server boot + list tools).
 
 ---
 
-## หมายเหตุการทำงาน
+## Behavior notes
 
-- 429 → retry อัตโนมัติ 3 ครั้ง ตาม `Retry-After`
-- error จาก Asana ส่งกลับเป็นข้อความจริงจาก API (บอกว่า field ไหนหาย / gid ไหนผิด) ไม่ใช่แค่ status code
-- ฟิลด์ที่ไม่ได้ส่ง จะไม่ถูกแตะ — `portfolio_update` ที่ส่งแค่ `name` ไม่ล้างสี
+- 429 → retries automatically up to 3 times, honoring `Retry-After`
+- Errors from Asana come back as the API's actual message (which field is missing / which gid is wrong), not just a status code
+- Fields you don't send are left untouched: a `portfolio_update` that sends only `name` won't clear the color
