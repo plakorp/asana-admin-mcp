@@ -79,7 +79,7 @@ The token is read from the `ASANA_TOKEN` env var first, falling back to `~/.asan
 
 ---
 
-## Tools (40)
+## Tools (43)
 
 Every tool takes a **gid**, not a name. Use `asana_find` to turn a name into a gid first.
 
@@ -219,6 +219,15 @@ Someone has to copy that URL for you, because there's no `GET /rules` to discove
 | `section_create` | Add a section at a chosen position |
 | `section_update` | **Rename** a section |
 | `section_reorder` | **Reorder** sections |
+
+### Access
+| Tool | What it does |
+|---|---|
+| `member_add` | Give a person or team access to a project or portfolio |
+| `member_list` | Who has access to a project or portfolio, and at what level |
+
+> Asana's own limits: a **project** is admin / editor / commenter only. There's **no view-only level for projects**, so commenter is the least access possible.
+> A **portfolio** is admin / editor / viewer.
 
 ### Attachment
 | Tool | What it does |

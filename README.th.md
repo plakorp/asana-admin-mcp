@@ -79,7 +79,7 @@ Token อ่านจาก env `ASANA_TOKEN` ก่อน ถ้าไม่ม
 
 ---
 
-## Tools (40)
+## Tools (43)
 
 ทุก tool รับ **gid** ไม่ใช่ชื่อ — ใช้ `asana_find` แปลงชื่อ → gid ก่อน
 
@@ -219,6 +219,15 @@ Asana จะแปะบรรทัด `⚠ This table cannot be viewed on Mobi
 | `section_create` | เพิ่ม section + ระบุตำแหน่งได้ |
 | `section_update` | **rename** section |
 | `section_reorder` | **จัดลำดับ** section |
+
+### Access
+| Tool | ทำอะไร |
+|---|---|
+| `member_add` | ให้สิทธิ์คนหรือทีมเข้า project หรือ portfolio |
+| `member_list` | ใครมีสิทธิ์ใน project หรือ portfolio บ้าง และระดับไหน |
+
+> ข้อจำกัดของ Asana เอง: **project** มีแค่ admin / editor / commenter **ไม่มีระดับดูอย่างเดียว** ⇒ ต่ำสุดคือ commenter
+> **portfolio** มี admin / editor / viewer
 
 ### Attachment
 | Tool | ทำอะไร |
