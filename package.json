@@ -2,7 +2,7 @@
   "name": "asana-admin-mcp",
   "version": "1.4.1",
   "type": "module",
-  "description": "MCP server for Asana structure admin: portfolios, custom fields / dropdown options, projects, sections, project templates, teams, Knowledge pages, attachments",
+  "description": "Asana MCP for the write operations the official connector can't do: portfolios, custom fields & dropdowns, projects, sections, templates, teams, Knowledge pages, attachments.",
   "keywords": ["mcp", "mcp-server", "model-context-protocol", "asana", "claude", "claude-code"],
   "license": "MIT",
   "author": "Korn (plakorp)",

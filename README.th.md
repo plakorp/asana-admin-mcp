@@ -2,9 +2,9 @@
 
 [English](README.md)
 
-MCP server สำหรับ **จัดโครงสร้าง Asana** — portfolio, custom field / dropdown, project, section,
-project template, team (แท็บ People)
-เติมช่องที่ Asana connector ตัวมาตรฐานทำไม่ได้ (ตัวนั้นเน้น task/read)
+**Asana MCP สำหรับงานเขียน/แก้ที่ connector ทางการทำไม่ได้:** portfolio, custom field & dropdown,
+project, section, project template, team (แท็บ People), Knowledge page และไฟล์แนบ
+ใช้คู่กับ Asana connector ทางการ (ตัวนั้นเน้น task/read)
 
 ---
 

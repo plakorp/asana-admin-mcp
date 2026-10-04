@@ -1,6 +1,6 @@
 {
   "name": "asana-admin",
-  "description": "Asana structure admin — portfolios, custom fields / dropdown options, projects, sections, project templates, teams (People), Knowledge pages, file attachments, and access levels",
+  "description": "Asana MCP for the write operations the official connector can't do: portfolios, custom fields & dropdowns, projects, sections, templates, teams, Knowledge pages, attachments.",
   "version": "1.4.1",
   "author": {
     "name": "Korn (plakorp)"

@@ -1,6 +1,6 @@
 {
   "name": "asana-admin-mcp",
-  "description": "Asana admin tooling for design and project ops.",
+  "description": "Asana MCP for the write operations the official connector can't do: portfolios, custom fields & dropdowns, projects, sections, templates, teams, Knowledge pages, attachments.",
   "owner": {
     "name": "plakorp",
     "url": "https://github.com/plakorp"
@@ -10,7 +10,7 @@
       "name": "asana-admin",
       "displayName": "Asana Admin",
       "source": "./",
-      "description": "Create and reorder Asana portfolios, dropdown values, projects, sections, and access — the write operations the stock Asana connector leaves out."
+      "description": "Asana MCP for the write operations the official connector can't do: portfolios, custom fields & dropdowns, projects, sections, templates, teams, Knowledge pages, attachments."
     }
   ]
 }

@@ -2,9 +2,9 @@
 
 [ภาษาไทย](README.th.md)
 
-MCP server for **Asana structure admin**: portfolios, custom fields / dropdowns, projects, sections,
-project templates, teams (the People tab), Knowledge pages and file attachments.
-It fills the gaps the standard Asana connector leaves open (that one focuses on tasks and reading).
+**Asana MCP for the write operations the official connector can't do:** portfolios, custom fields & dropdowns,
+projects, sections, project templates, teams (the People tab), Knowledge pages and file attachments.
+Use it alongside the official Asana connector, which covers tasks and reading.
 
 ---
 
