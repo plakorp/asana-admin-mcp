@@ -1,5 +1,7 @@
 # asana-admin-mcp
 
+[![M8ven](https://m8ven.ai/badge/mcp/plakorp/asana-admin-mcp?variant=verified)](https://m8ven.ai/mcp/plakorp/asana-admin-mcp?s=readme)
+
 [ภาษาไทย](README.th.md)
 
 **Asana MCP for the write operations the official connector can't do:** portfolios, custom fields & dropdowns,
