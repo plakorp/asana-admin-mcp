@@ -81,7 +81,7 @@ The token is read from the `ASANA_TOKEN` env var first, falling back to `~/.asan
 
 ---
 
-## Tools (43)
+## Tools (44)
 
 Every tool takes a **gid**, not a name. Use `asana_find` to turn a name into a gid first.
 
@@ -227,8 +227,9 @@ Someone has to copy that URL for you, because there's no `GET /rules` to discove
 |---|---|
 | `member_add` | Give a person or team access to a project or portfolio |
 | `member_list` | Who has access to a project or portfolio, and at what level |
+| `member_update` | Change the access level of an existing membership (pass the membership gid from `member_list`) |
 
-> Asana's own limits: a **project** is admin / editor / commenter only. There's **no view-only level for projects**, so commenter is the least access possible.
+> Levels: admin / editor / commenter / **viewer** on projects as well as portfolios (measured 2026-10-05 — a project viewer is enforced, e.g. 403 on delete). `member_update` changes the level of an existing membership; lowering your own takes effect at once.
 > A **portfolio** is admin / editor / viewer.
 
 ### Attachment

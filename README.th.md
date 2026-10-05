@@ -79,7 +79,7 @@ Token อ่านจาก env `ASANA_TOKEN` ก่อน ถ้าไม่ม
 
 ---
 
-## Tools (43)
+## Tools (44)
 
 ทุก tool รับ **gid** ไม่ใช่ชื่อ — ใช้ `asana_find` แปลงชื่อ → gid ก่อน
 
@@ -225,8 +225,9 @@ Asana จะแปะบรรทัด `⚠ This table cannot be viewed on Mobi
 |---|---|
 | `member_add` | ให้สิทธิ์คนหรือทีมเข้า project หรือ portfolio |
 | `member_list` | ใครมีสิทธิ์ใน project หรือ portfolio บ้าง และระดับไหน |
+| `member_update` | เปลี่ยนระดับสิทธิ์ของ membership ที่มีอยู่ (ส่ง membership gid จาก `member_list`) |
 
-> ข้อจำกัดของ Asana เอง: **project** มีแค่ admin / editor / commenter **ไม่มีระดับดูอย่างเดียว** ⇒ ต่ำสุดคือ commenter
+> ระดับสิทธิ์: admin / editor / commenter / **viewer** ใช้ได้ทั้ง project และ portfolio (วัด 2026-10-05 — viewer บน project มีผลจริง เช่นลบไม่ได้ 403) · `member_update` เปลี่ยนระดับของ membership ที่มีอยู่ · ลดสิทธิ์ตัวเองแล้วมีผลทันที
 > **portfolio** มี admin / editor / viewer
 
 ### Attachment

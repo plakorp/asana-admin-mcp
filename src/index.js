@@ -640,13 +640,13 @@ tool(
     title: "Add member to project or portfolio",
     annotations: ADD,
     description:
-      "Give a person or team access to a project or portfolio. NOTE Asana's own limits: a project can only be admin / editor / commenter — there is no view-only level for projects, so 'commenter' is the least access possible. A portfolio can be admin / editor / viewer.",
+      "Give a person or team access to a project or portfolio. Levels: admin / editor / commenter / viewer, on projects and portfolios alike — Asana accepts 'viewer' on a project and enforces it (measured 2026-10-05: a project viewer gets 403 on delete).",
     inputSchema: {
       parent_gid: GID.describe("The project or portfolio to grant access to."),
       member_gid: GID.describe("User gid (or team gid). Use asana_find with type 'user'."),
       access_level: z
         .enum(["admin", "editor", "commenter", "viewer"])
-        .describe("Projects: admin/editor/commenter. Portfolios: admin/editor/viewer."),
+        .describe("admin / editor / commenter / viewer — all four work on projects and portfolios."),
     },
   },
   async ({ parent_gid, member_gid, access_level }) =>
@@ -667,6 +667,27 @@ tool(
   async ({ parent_gid }) =>
     req("GET", "/memberships", {
       query: { parent: parent_gid, limit: 100, opt_fields: "access_level,member.name" },
+    })
+);
+
+// member_add answers 400 "membership already exists" for someone already in the
+// project, so changing a role needs its own call against the membership gid.
+tool(
+  "member_update",
+  {
+    title: "Change a member's access level",
+    annotations: CHANGE,
+    description:
+      "Change the role of someone who already has access. Pass the membership gid (the top-level `gid` from member_list, NOT the member's user gid). Levels: admin / editor / commenter / viewer. Lowering YOUR OWN membership takes effect at once — as a viewer you can no longer change it back or delete the project.",
+    inputSchema: {
+      membership_gid: GID.describe("The membership gid from member_list."),
+      access_level: z.enum(["admin", "editor", "commenter", "viewer"]),
+    },
+  },
+  async ({ membership_gid, access_level }) =>
+    req("PUT", `/memberships/${membership_gid}`, {
+      body: { access_level },
+      query: { opt_fields: "access_level,member.name,parent.name" },
     })
 );
 
