@@ -11,14 +11,16 @@ const ok = (data) => ({
 });
 
 /** Wrap every handler so an Asana 4xx comes back as a readable tool error, not a crash. */
-const tool = (name, config, handler) =>
-  server.registerTool(name, config, async (args) => {
+const tool = (name, config, handler) => {
+  if (!config.annotations) throw new Error(`${name}: missing annotations`);
+  return server.registerTool(name, config, async (args) => {
     try {
       return ok(await handler(args));
     } catch (err) {
       return { isError: true, content: [{ type: "text", text: err.message }] };
     }
   });
+};
 
 const GID = z.string().describe("Asana gid (numeric string). Use asana_find to look one up by name.");
 const COLOR = z
@@ -36,12 +38,26 @@ const CONFIRM = z
   .literal(true)
   .describe("Must be true. This permanently destroys something; there is no undo and no trash.");
 
+/**
+ * MCP tool annotations — hosts use these to decide when to warn before a call.
+ * Every tool is openWorld: it talks to Asana over the network.
+ *   READ    — GET only.
+ *   CREATE  — makes a new object; calling twice makes two.
+ *   ADD     — purely additive, and a repeat is a no-op (Asana rejects or ignores it).
+ *   CHANGE  — overwrites or removes something that already exists.
+ */
+const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
+const CREATE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
+const ADD = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true };
+const CHANGE = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true };
+
 // ─── Discovery ────────────────────────────────────────────────────────────────
 
 tool(
   "asana_whoami",
   {
     title: "Who am I",
+    annotations: READ,
     description:
       "The authenticated user and their workspaces. Call this first — almost every create call needs a workspace_gid.",
     inputSchema: {},
@@ -53,6 +69,7 @@ tool(
   "asana_find",
   {
     title: "Find gid by name",
+    annotations: READ,
     description:
       "Typeahead search that turns a name you can see in the Asana UI into the gid every other tool needs.",
     inputSchema: {
@@ -74,6 +91,7 @@ tool(
   "asana_list_custom_fields",
   {
     title: "List custom fields",
+    annotations: READ,
     description:
       "Custom fields in a workspace, or the ones attached to a project/portfolio. Returns enum_options with their gids — the input for every dropdown tool.",
     inputSchema: {
@@ -104,6 +122,7 @@ tool(
   "portfolio_create",
   {
     title: "Create portfolio",
+    annotations: CREATE,
     description: "Create a portfolio in a workspace.",
     inputSchema: {
       workspace_gid: GID,
@@ -123,6 +142,7 @@ tool(
   "portfolio_update",
   {
     title: "Rename / update portfolio",
+    annotations: CHANGE,
     description: "Change a portfolio's name, color, or visibility. Only the fields you pass are touched.",
     inputSchema: {
       portfolio_gid: GID,
@@ -142,6 +162,7 @@ tool(
   "portfolio_list_items",
   {
     title: "List portfolio items",
+    annotations: READ,
     description: "The projects/portfolios inside a portfolio, in their current display order.",
     inputSchema: { portfolio_gid: GID },
   },
@@ -155,6 +176,7 @@ tool(
   "portfolio_add_item",
   {
     title: "Add project to portfolio",
+    annotations: ADD,
     description:
       "Add a project (or sub-portfolio) to a portfolio, optionally at a chosen position. Adding an item that is already present moves it to that position.",
     inputSchema: {
@@ -177,6 +199,7 @@ tool(
   "portfolio_remove_item",
   {
     title: "Remove item from portfolio",
+    annotations: CHANGE,
     description:
       "Remove a project from a portfolio. This also drops any portfolio-level custom field values set on that project.",
     inputSchema: {
@@ -197,6 +220,7 @@ tool(
   "custom_field_create",
   {
     title: "Create custom field",
+    annotations: CREATE,
     description:
       "Create a workspace custom field. For a dropdown use type 'enum' (single-select) or 'multi_enum' (multi-select) and pass enum_options.",
     inputSchema: {
@@ -229,6 +253,7 @@ tool(
   "custom_field_update",
   {
     title: "Rename / update custom field",
+    annotations: CHANGE,
     description: "Change a custom field's name or description. Enum values are edited with the enum_option_* tools.",
     inputSchema: {
       custom_field_gid: GID,
@@ -247,6 +272,7 @@ tool(
   "enum_option_create",
   {
     title: "Create dropdown value",
+    annotations: CREATE,
     description:
       "Add a value to an enum / multi_enum custom field. Appended at the end unless you give a position.",
     inputSchema: {
@@ -270,6 +296,7 @@ tool(
   "enum_option_update",
   {
     title: "Rename / disable dropdown value",
+    annotations: CHANGE,
     description:
       "Rename, recolor, or disable a dropdown value. There is no way to DELETE one: DELETE /enum_options/{gid} is a real route but Asana answers 403 'Enum option deletion is forbidden' (measured 2026-08-27). enabled:false is the only retirement there is — it hides the value from the picker while tasks already holding it keep it.",
     inputSchema: {
@@ -290,6 +317,7 @@ tool(
   "enum_option_reorder",
   {
     title: "Reorder dropdown value",
+    annotations: CHANGE,
     description: "Move an existing dropdown value to a new position within its custom field.",
     inputSchema: {
       custom_field_gid: GID,
@@ -313,6 +341,7 @@ tool(
   "custom_field_attach",
   {
     title: "Attach custom field to project or portfolio",
+    annotations: ADD,
     description: "Make an existing custom field available on a project or a portfolio.",
     inputSchema: {
       custom_field_gid: GID,
@@ -341,6 +370,7 @@ tool(
   "custom_field_detach",
   {
     title: "Detach custom field from project or portfolio",
+    annotations: CHANGE,
     description:
       "Remove a custom field from one project or portfolio. The field itself and its values on other projects are untouched — this only takes the column away here.",
     inputSchema: {
@@ -371,6 +401,7 @@ tool(
   "custom_field_delete",
   {
     title: "Delete custom field",
+    annotations: CHANGE,
     description:
       "Permanently delete a workspace custom field. It disappears from EVERY project and portfolio that uses it, along with the values stored on their tasks — a field is workspace-wide, so this is never a local cleanup. Check custom_field_attach's inverse (custom_field_detach) first: detaching from one project is usually what was actually wanted. UNDOCUMENTED endpoint.",
     inputSchema: {
@@ -397,6 +428,7 @@ tool(
   "template_list",
   {
     title: "List project templates",
+    annotations: READ,
     description:
       "Project templates visible to you. In an organization (bangkokbank.com is one) you MUST list per team — a workspace query is rejected. Use asana_find with type 'team' to get team gids.",
     inputSchema: {
@@ -422,6 +454,7 @@ tool(
   "template_get",
   {
     title: "Get project template",
+    annotations: READ,
     description:
       "The full template record, including requested_roles and requested_dates — the two things template_instantiate needs answers for.",
     inputSchema: { template_gid: GID },
@@ -439,6 +472,7 @@ tool(
   "template_instantiate",
   {
     title: "Create a project from a template",
+    annotations: CREATE,
     description:
       "Build a real project from a template. Runs as a dry run by default: it reports what the template will ask for and creates nothing until you pass execute:true. NOTE a template does NOT carry Dashboard widgets (an open Asana feature request) — if the new project must have charts, use project_duplicate on a fully-configured project instead. Returns an Asana job; the project appears a moment after the call.",
     inputSchema: {
@@ -515,6 +549,7 @@ tool(
   "page_create",
   {
     title: "Create Knowledge page",
+    annotations: CREATE,
     description: "Create a page under Knowledge → Pages.",
     inputSchema: {
       workspace_gid: GID,
@@ -537,6 +572,7 @@ tool(
   "page_update",
   {
     title: "Rename / edit Knowledge page",
+    annotations: CHANGE,
     description:
       "Change a page's title, body, or privacy. Only the fields you pass are touched — but " +
       "html_text REPLACES the whole body, it never appends. To add to a page: page_get first, " +
@@ -562,6 +598,7 @@ tool(
   "page_get",
   {
     title: "Read a Knowledge page",
+    annotations: READ,
     description:
       "Full page including html_text — read this before editing so you do not overwrite the body. " +
       "TWO BLIND SPOTS. (1) Tables: a table on the page comes back only as the placeholder line " +
@@ -582,6 +619,7 @@ tool(
   "page_list",
   {
     title: "List Knowledge pages",
+    annotations: READ,
     description: "Pages in a workspace, newest first. Untitled pages come back with an empty name.",
     inputSchema: {
       workspace_gid: GID,
@@ -600,6 +638,7 @@ tool(
   "member_add",
   {
     title: "Add member to project or portfolio",
+    annotations: ADD,
     description:
       "Give a person or team access to a project or portfolio. NOTE Asana's own limits: a project can only be admin / editor / commenter — there is no view-only level for projects, so 'commenter' is the least access possible. A portfolio can be admin / editor / viewer.",
     inputSchema: {
@@ -621,6 +660,7 @@ tool(
   "member_list",
   {
     title: "List members of a project or portfolio",
+    annotations: READ,
     description: "Who currently has access, and at what level.",
     inputSchema: { parent_gid: GID },
   },
@@ -642,6 +682,7 @@ tool(
   "team_list",
   {
     title: "List teams",
+    annotations: READ,
     description:
       "Teams in the organization. Defaults to the ones you belong to; pass all:true for every team in the org. Use this rather than asana_find when you have no name to search for — typeahead returns nothing for an empty query.",
     inputSchema: {
@@ -663,6 +704,7 @@ tool(
   "team_get",
   {
     title: "Get team",
+    annotations: READ,
     description:
       "A team's record, including the six access-level settings that decide who in it may invite, remove members, rename it or trash it. Read these before changing a team's membership — they say whether you are allowed to.",
     inputSchema: { team_gid: GID },
@@ -683,6 +725,7 @@ tool(
   "team_create",
   {
     title: "Create team",
+    annotations: CREATE,
     description:
       "Create a team in the organization. There is no delete for teams in the API — the only way to remove one is the Asana UI, so name it correctly the first time.",
     inputSchema: {
@@ -706,6 +749,7 @@ tool(
   "team_update",
   {
     title: "Rename / update team",
+    annotations: CHANGE,
     description: "Change a team's name, description or visibility.",
     inputSchema: {
       team_gid: GID,
@@ -725,6 +769,7 @@ tool(
   "team_members",
   {
     title: "List team members",
+    annotations: READ,
     description:
       "Everyone in a team, with is_admin / is_guest / is_limited_access per person. This is the People tab's real content.",
     inputSchema: {
@@ -746,6 +791,7 @@ tool(
   "team_add_user",
   {
     title: "Add person to team",
+    annotations: ADD,
     description:
       "Add someone already in the organization to a team. This does NOT invite a new person into Asana — inviting is an org-admin call a Personal Access Token cannot make (it answers 403).",
     inputSchema: {
@@ -766,6 +812,7 @@ tool(
   "team_remove_user",
   {
     title: "Remove person from team",
+    annotations: CHANGE,
     description:
       "Take someone out of a team. They keep their Asana account and anything assigned to them, but lose access to the team's projects — which can hide work they are still the assignee of.",
     inputSchema: {
@@ -786,6 +833,7 @@ tool(
   "project_create",
   {
     title: "Create project",
+    annotations: CREATE,
     description: "Create a project in a workspace (team_gid is required in an organization).",
     inputSchema: {
       workspace_gid: GID,
@@ -811,6 +859,7 @@ tool(
   "project_update",
   {
     title: "Rename / update project",
+    annotations: CHANGE,
     description: "Change a project's name, notes, color, default view, or archived state.",
     inputSchema: {
       project_gid: GID,
@@ -833,6 +882,7 @@ tool(
   "project_set_fields",
   {
     title: "Set project custom field values",
+    annotations: CHANGE,
     description:
       "Write custom field VALUES on a project — this is the only way to fill the columns you see in a portfolio List view, because those values live on the project, not the portfolio. Pass a map of custom_field_gid → value: text takes a string, number a number, enum the enum_option gid, multi_enum an array of gids, date {\"date\":\"YYYY-MM-DD\"}. null clears one. Only the fields you pass are touched. Get the gids from asana_list_custom_fields (project_gid or portfolio_gid).",
     inputSchema: {
@@ -856,6 +906,7 @@ tool(
   "project_duplicate",
   {
     title: "Duplicate project",
+    annotations: CREATE,
     description:
       "Copy a project. Tasks, project views (List/Board/Dashboard tabs) and rules are always carried over — this is the only way to give a new project a preconfigured Dashboard, since Asana exposes no dashboard/chart API. Returns a job; duplication finishes asynchronously.",
     inputSchema: {
@@ -897,6 +948,7 @@ tool(
   "project_list_sections",
   {
     title: "List project sections",
+    annotations: READ,
     description: "Sections of a project in display order — the gids needed by section_reorder.",
     inputSchema: { project_gid: GID },
   },
@@ -908,6 +960,7 @@ tool(
   "section_create",
   {
     title: "Create section",
+    annotations: CREATE,
     description: "Add a section to a project, optionally at a chosen position.",
     inputSchema: {
       project_gid: GID,
@@ -929,6 +982,7 @@ tool(
   "section_update",
   {
     title: "Rename section",
+    annotations: CHANGE,
     description: "Rename an existing section.",
     inputSchema: { section_gid: GID, name: z.string() },
   },
@@ -940,6 +994,7 @@ tool(
   "section_reorder",
   {
     title: "Reorder section",
+    annotations: CHANGE,
     description: "Move an existing section to a new position within its project.",
     inputSchema: {
       project_gid: GID,
@@ -963,6 +1018,7 @@ tool(
   "task_attach",
   {
     title: "Attach a file to a task",
+    annotations: CREATE,
     description:
       "Upload a file from this machine and attach it to a task (a project or project brief gid works as the parent too). Asana has no API for re-pointing an existing attachment at a second task — to put the same file on another task, upload it again. Max 100 MB.",
     inputSchema: {
@@ -981,6 +1037,7 @@ tool(
   "task_attachments",
   {
     title: "List attachments",
+    annotations: READ,
     description: "Attachments already on a task, with the gid each one needs to be deleted.",
     inputSchema: { parent_gid: GID },
   },
@@ -994,6 +1051,7 @@ tool(
   "attachment_delete",
   {
     title: "Delete attachment",
+    annotations: CHANGE,
     description: "Remove an attachment. The file is gone from Asana; there is no undo.",
     inputSchema: { attachment_gid: GID, confirm: CONFIRM },
   },

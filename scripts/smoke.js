@@ -27,6 +27,15 @@ await client.connect(
 const { tools } = await client.listTools();
 console.log(`✓ server up — ${tools.length} tools: ${tools.map((t) => t.name).join(", ")}\n`);
 
+// OpenAI's directory rejects a tool unless all four hints are explicit booleans.
+const HINTS = ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"];
+const unannotated = tools.filter((t) => HINTS.some((h) => typeof t.annotations?.[h] !== "boolean"));
+if (unannotated.length) {
+  console.error(`✗ missing annotation hints: ${unannotated.map((t) => t.name).join(", ")}`);
+  process.exit(1);
+}
+console.log(`✓ all ${tools.length} tools carry the four annotation hints\n`);
+
 const created = { projects: [], portfolios: [], custom_fields: [], notes: [] };
 let failures = 0;
 
